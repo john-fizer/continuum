@@ -254,6 +254,28 @@ export function mountSupernova(
   const filaments = new THREE.LineSegments(filamentsGeometry, filamentMaterial);
   universe.add(filaments);
 
+  // The synthesis point has its own magnetic corona in attention mode. It is
+  // a breathing stellar body inside the field, not another graph node.
+  const plasmaCorona = new THREE.Group();
+  const coronaColors = ['#ffcf78', '#ff743f', '#e64a9e', '#ffdcb0'];
+  for (let ring = 0; ring < 9; ring++) {
+    const loop = new THREE.Mesh(
+      new THREE.TorusGeometry(1.16 + ring * 0.045, 0.007 + (ring % 3) * 0.003, 5, 96),
+      new THREE.MeshBasicMaterial({
+        color: coronaColors[ring % coronaColors.length],
+        transparent: true,
+        opacity: 0.16 + (ring % 3) * 0.035,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
+    loop.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
+    loop.userData = { spin: (ring % 2 ? -1 : 1) * (0.05 + ring * 0.012), phase: rand() * Math.PI * 2 };
+    plasmaCorona.add(loop);
+  }
+  plasmaCorona.visible = initial.attentionMode === true;
+  universe.add(plasmaCorona);
+
   const starCount = compact ? 1800 : 4500,
     starGeometry = new THREE.BufferGeometry();
   const starPositions = new Float32Array(starCount * 3),
@@ -627,6 +649,12 @@ export function mountSupernova(
     signalField.rotation.y = t * 0.035;
     streamTrails.material.opacity = controls.attentionMode ? 0.16 + Math.sin(t * 1.1) * 0.035 : 0;
     filaments.visible = !controls.attentionMode;
+    plasmaCorona.visible = controls.attentionMode === true;
+    plasmaCorona.scale.setScalar(0.76 + Math.sin(t * 1.18) * 0.07 + Math.sin(t * 0.31) * 0.035);
+    plasmaCorona.children.forEach((loop) => {
+      loop.rotation.z += loop.userData.spin * (reduced ? 0.012 : 0.026);
+      loop.rotation.x += Math.sin(t * 0.62 + loop.userData.phase) * 0.0018;
+    });
     cortex.rotation.y = t * 0.09;
     cortex.rotation.z = Math.sin(t * 0.13) * 0.12;
     cortex.scale.setScalar(1 + Math.sin(t * 0.6) * 0.018);
@@ -637,9 +665,10 @@ export function mountSupernova(
     conceptFields.rotation.z = t * 0.14;
     conceptFields.rotation.x = Math.sin(t * 0.21) * 0.08;
     core.scale.setScalar(
-      (controls.attentionMode ? 0.48 : controls.focusId ? 0.68 : 1) *
-        (1 + Math.sin(t * 0.65) * 0.024),
+      (controls.attentionMode ? 0.86 : controls.focusId ? 0.68 : 1) *
+        (1 + Math.sin(t * 1.18) * 0.07 + Math.sin(t * 0.31) * 0.025),
     );
+    shell.scale.setScalar(controls.attentionMode ? 0.8 + Math.sin(t * 1.18) * 0.045 : 1);
     core.position.z = controls.focusId ? -0.3 : 0;
     const signal = controls.signal;
     const progress = reduced
@@ -670,14 +699,14 @@ export function mountSupernova(
       null;
     if (!aiming) smoothed.lerp(pointer, reduced ? 1 : 0.06);
     const distance = 10.8 / Math.min(1, width / height) / controls.zoom;
-    camera.position.set(smoothed.x * 1.15, -smoothed.y * 0.8, distance);
+    camera.position.set(smoothed.x * 1.8, -smoothed.y * 1.24, distance);
     camera.lookAt(0, 0, 0);
     core.rotation.set(t * 0.023, t * 0.075, 0.2);
     shell.rotation.set(0.16 + Math.sin(t * 0.06) * 0.08, t * 0.033, 0.2);
     if (!aiming)
       universe.rotation.set(
-        -0.06 + smoothed.y * 0.065,
-        smoothed.x * 0.1,
+        -0.06 + smoothed.y * 0.1,
+        smoothed.x * 0.16,
         0.06 * Math.sin(t * 0.07),
       );
     halo.quaternion.copy(camera.quaternion);
