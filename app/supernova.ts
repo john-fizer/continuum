@@ -251,7 +251,8 @@ export function mountSupernova(
     fragmentShader:
       'varying vec3 vColor; varying float vPulse; void main(){gl_FragColor=vec4(vColor,vPulse);}',
   });
-  universe.add(new THREE.LineSegments(filamentsGeometry, filamentMaterial));
+  const filaments = new THREE.LineSegments(filamentsGeometry, filamentMaterial);
+  universe.add(filaments);
 
   const starCount = compact ? 1800 : 4500,
     starGeometry = new THREE.BufferGeometry();
@@ -366,6 +367,77 @@ export function mountSupernova(
   cortex.visible = initial.attentionMode === true;
   universe.add(cortex);
 
+  // Attention is rendered as a travelling field: cool paths retrieve evidence
+  // into the synthesis core while warm paths carry novel associations back out.
+  // These are deliberately continuous trajectories, never a node-link diagram.
+  const signalField = new THREE.Group();
+  const streamStarts: number[] = [], streamEnds: number[] = [], streamColors: number[] = [], streamSeeds: number[] = [];
+  const trailPositions: number[] = [], trailColors: number[] = [];
+  const streamCount = compact ? 1500 : 4300;
+  const paths: { curve: THREE.CatmullRomCurve3; color: THREE.Color; outward: boolean }[] = [];
+  for (let arm = 0; arm < 14; arm++) {
+    const angle = (arm / 14) * Math.PI * 2 + rand() * 0.18;
+    const warm = arm % 4 === 0;
+    const color = new THREE.Color(warm ? '#ff9e55' : '#46dcff');
+    const edge = new THREE.Vector3(
+      Math.cos(angle) * (3.7 + rand() * 1.5),
+      Math.sin(angle) * (2.0 + rand() * 1.05),
+      (rand() - 0.5) * 2.4,
+    );
+    const bend = edge.clone().multiplyScalar(0.48).add(new THREE.Vector3(
+      Math.sin(angle * 3. + arm) * 0.9,
+      Math.cos(angle * 2. + arm) * 0.52,
+      (rand() - 0.5) * 1.05,
+    ));
+    const corePoint = new THREE.Vector3(
+      (rand() - 0.5) * 0.5,
+      (rand() - 0.5) * 0.42,
+      (rand() - 0.5) * 0.45,
+    );
+    const curve = new THREE.CatmullRomCurve3([edge, bend, corePoint], false, 'centripetal');
+    paths.push({ curve, color, outward: warm });
+    const points = curve.getPoints(54);
+    for (let p = 1; p < points.length; p++) {
+      trailPositions.push(...points[p - 1].toArray(), ...points[p].toArray());
+      trailColors.push(...color.clone().multiplyScalar(warm ? 0.42 : 0.34).toArray(), ...color.clone().multiplyScalar(warm ? 0.42 : 0.34).toArray());
+    }
+  }
+  const trailGeometry = new THREE.BufferGeometry();
+  trailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trailPositions, 3));
+  trailGeometry.setAttribute('color', new THREE.Float32BufferAttribute(trailColors, 3));
+  const streamTrails = new THREE.LineSegments(trailGeometry, new THREE.LineBasicMaterial({
+    transparent: true, opacity: 0.16, vertexColors: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  signalField.add(streamTrails);
+  for (let i = 0; i < streamCount; i++) {
+    const path = paths[i % paths.length];
+    const u = rand();
+    const p = path.curve.getPointAt(u);
+    const next = path.curve.getPointAt(Math.min(.999, u + .008));
+    streamStarts.push(...p.toArray());
+    streamEnds.push(...next.toArray());
+    const intensity = 0.7 + rand() * 1.6;
+    streamColors.push(...path.color.clone().multiplyScalar(intensity).toArray());
+    streamSeeds.push(rand() + (path.outward ? 0.5 : 0));
+  }
+  const streamGeometry = new THREE.BufferGeometry();
+  streamGeometry.setAttribute('position', new THREE.Float32BufferAttribute(streamStarts, 3));
+  streamGeometry.setAttribute('aEnd', new THREE.Float32BufferAttribute(streamEnds, 3));
+  streamGeometry.setAttribute('color', new THREE.Float32BufferAttribute(streamColors, 3));
+  streamGeometry.setAttribute('aSeed', new THREE.Float32BufferAttribute(streamSeeds, 1));
+  const streamParticles = new THREE.Points(streamGeometry, new THREE.ShaderMaterial({
+    uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `uniform float uTime; uniform float uPixelRatio; attribute vec3 aEnd; attribute vec3 color; attribute float aSeed;
+      varying vec3 vColor; varying float vAlpha;
+      void main(){ float velocity=.12+fract(aSeed*17.)*.18; float wave=fract(aSeed+uTime*velocity); vec3 p=mix(position,aEnd,wave);
+        float breath=.65+.35*sin(uTime*1.3+aSeed*40.); vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv;
+        gl_PointSize=clamp(uPixelRatio*(8.+fract(aSeed*91.)*18.)/max(1.,-mv.z),1.,7.); vColor=color*(.75+breath); vAlpha=.18+breath*.62; }`,
+    fragmentShader: particleFragment,
+  }));
+  signalField.add(streamParticles);
+  signalField.visible = initial.attentionMode === true;
+  universe.add(signalField);
+
   const electronGeometry = new THREE.BufferGeometry();
   const electronStarts: number[] = [],
     electronEnds: number[] = [],
@@ -444,6 +516,7 @@ export function mountSupernova(
       nodeGeometry,
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(n.color).multiplyScalar(2.5),
+        transparent: true,
       }),
     );
     mesh.position.set(n.x / 83, -n.y / 83, Math.sin(n.phase) * 0.65 + 0.35);
@@ -549,6 +622,11 @@ export function mountSupernova(
     uniforms.uTime.value = t;
     decorativeElectrons.visible = true;
     cortex.visible = controls.attentionMode === true;
+    signalField.visible = controls.attentionMode === true;
+    signalField.rotation.z = Math.sin(t * 0.12) * 0.06;
+    signalField.rotation.y = t * 0.035;
+    streamTrails.material.opacity = controls.attentionMode ? 0.16 + Math.sin(t * 1.1) * 0.035 : 0;
+    filaments.visible = !controls.attentionMode;
     cortex.rotation.y = t * 0.09;
     cortex.rotation.z = Math.sin(t * 0.13) * 0.12;
     cortex.scale.setScalar(1 + Math.sin(t * 0.6) * 0.018);
@@ -626,6 +704,7 @@ export function mountSupernova(
       mesh.material.color
         .set(n.color)
         .multiplyScalar(active ? 3.2 : controls.attentionMode ? 0.6 : 2.5);
+      mesh.material.opacity = controls.attentionMode ? (active ? 1 : 0.06) : 1;
     }
     composer.render();
   }

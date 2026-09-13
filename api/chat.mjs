@@ -7,6 +7,14 @@ function compact(text, size = 2200) {
   return String(text || '').replace(/\s+/g, ' ').trim().slice(0, size);
 }
 
+function visibleAnswer(value) {
+  const text = String(value || '').trim();
+  // Some reasoning models return an internal draft wrapped in <think> tags.
+  // Continuum never presents that draft as a user-facing answer.
+  const withoutThought = text.replace(/<think>[\s\S]*?<\/think>\s*/gi, '').trim();
+  return withoutThought || '';
+}
+
 function extractiveAnswer(question, citations, reason) {
   const terms = new Set(
     (question.toLowerCase().match(/[a-z][a-z0-9'-]{2,}/g) || []).filter(
@@ -57,12 +65,15 @@ export default async function handler(request, response) {
   const generated = await fetch(gateway, {
     method: 'POST',
     headers: { Authorization: `Bearer ${gatewayToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.35, max_tokens: 900 }),
+    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.35, max_tokens: 900, chat_template_kwargs: { enable_thinking: false } }),
   });
   const payload = await generated.json();
   if (!generated.ok)
     return response.status(200).json(
       extractiveAnswer(question, citations, 'generative synthesis is temporarily unavailable'),
     );
-  return response.status(200).json({ answer: payload?.choices?.[0]?.message?.content || 'The model returned no answer.', citations, mode: 'synthesis' });
+  const answer = visibleAnswer(payload?.choices?.[0]?.message?.content);
+  return response.status(200).json(answer
+    ? { answer, citations, mode: 'synthesis' }
+    : extractiveAnswer(question, citations, 'the synthesis model returned no visible answer'));
 }
