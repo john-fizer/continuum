@@ -261,20 +261,32 @@ export function mountSupernova(
   // The synthesis point has its own magnetic corona in attention mode. It is
   // a breathing stellar body inside the field, not another graph node.
   const plasmaCorona = new THREE.Group();
-  const coronaColors = ['#ffcf78', '#ff743f', '#e64a9e', '#ffdcb0'];
-  for (let ring = 0; ring < 9; ring++) {
+  const coronaColors = ['#ffdf9e', '#ff8748', '#f1a7e9', '#ffd074', '#77e5ff', '#ffb26b'];
+  for (let ring = 0; ring < 7; ring++) {
+    const radius = 1.16 + ring * 0.19 + (ring % 2 ? 0.055 : 0);
     const loop = new THREE.Mesh(
-      new THREE.TorusGeometry(1.16 + ring * 0.045, 0.007 + (ring % 3) * 0.003, 5, 96),
+      new THREE.TorusGeometry(radius, 0.011 + (ring % 3) * 0.004, 6, 128),
       new THREE.MeshBasicMaterial({
         color: coronaColors[ring % coronaColors.length],
         transparent: true,
-        opacity: 0.16 + (ring % 3) * 0.035,
+        opacity: 0.22 + (ring % 3) * 0.055,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
     );
-    loop.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
-    loop.userData = { spin: (ring % 2 ? -1 : 1) * (0.05 + ring * 0.012), phase: rand() * Math.PI * 2 };
+    loop.rotation.set(
+      0.18 + (ring * Math.PI) / 3.7,
+      0.42 + (ring * Math.PI) / 2.9,
+      rand() * Math.PI,
+    );
+    loop.userData = {
+      spin: new THREE.Vector3(
+        (ring % 2 ? -1 : 1) * (0.006 + rand() * 0.006),
+        (ring % 3 ? 1 : -1) * (0.008 + rand() * 0.007),
+        (ring % 2 ? 1 : -1) * (0.004 + rand() * 0.007),
+      ),
+      phase: rand() * Math.PI * 2,
+    };
     plasmaCorona.add(loop);
   }
   plasmaCorona.visible = initial.attentionMode === true;
@@ -657,10 +669,14 @@ export function mountSupernova(
     streamTrails.material.opacity = controls.attentionMode ? 0.065 + Math.sin(t * 1.1) * 0.018 : 0.022;
     filaments.visible = !controls.attentionMode;
     plasmaCorona.visible = controls.attentionMode === true;
-    plasmaCorona.scale.setScalar(0.76 + Math.sin(t * 1.68) * 0.095 + Math.sin(t * 0.43) * 0.05);
+    plasmaCorona.scale.setScalar(0.82 + Math.sin(t * 1.68) * 0.095 + Math.sin(t * 0.43) * 0.05);
     plasmaCorona.children.forEach((loop) => {
-      loop.rotation.z += loop.userData.spin * (reduced ? 0.012 : 0.026);
-      loop.rotation.x += Math.sin(t * 0.62 + loop.userData.phase) * 0.0018;
+      const velocity = loop.userData.spin as THREE.Vector3;
+      const pace = reduced ? 0.35 : 1;
+      loop.rotation.x += velocity.x * pace;
+      loop.rotation.y += velocity.y * pace;
+      loop.rotation.z += velocity.z * pace;
+      loop.rotation.x += Math.sin(t * 0.82 + loop.userData.phase) * 0.0018;
     });
     cortex.rotation.y = t * 0.09;
     cortex.rotation.z = Math.sin(t * 0.13) * 0.12;
