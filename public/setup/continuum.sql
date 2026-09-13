@@ -1,0 +1,167 @@
+-- Continuum cloud memory v1. Run in the SQL Editor of YOUR Supabase project.
+-- Additive: only continuum_* objects. No service key, public notes, or fake AI jobs.
+begin;
+
+-- Fixed UTF-8 conversion makes this independent of client encoding.
+create or replace function public.continuum_source_hash(source_text text) returns text
+language sql immutable strict parallel safe set search_path = '' as $$
+  select encode(sha256(convert_to(btrim(source_text), 'UTF8')), 'hex');
+$$;
+revoke all on function public.continuum_source_hash(text) from public, anon;
+grant execute on function public.continuum_source_hash(text) to authenticated;
+
+create table if not exists public.continuum_brains (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name text not null check (length(btrim(name)) between 1 and 120),
+  direction text not null default '' check (length(direction) <= 10000),
+  parent_id uuid,
+  active integer not null default 0 check (active = 0),
+  cycle_limit integer not null default 500 check (cycle_limit between 1 and 100000),
+  cycles_used integer not null default 0 check (cycles_used = 0),
+  created double precision not null default extract(epoch from now()),
+  unique (id, owner_id),
+  foreign key (parent_id, owner_id) references public.continuum_brains(id, owner_id)
+);
+create table if not exists public.continuum_sources (
+  id uuid primary key default gen_random_uuid(),
+  brain_id uuid not null,
+  owner_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  title text not null check (length(btrim(title)) between 1 and 200),
+  body text not null check (length(btrim(body)) between 1 and 200000),
+  origin text not null default 'note' check (length(origin) <= 500),
+  metadata jsonb not null default '{}'::jsonb check (jsonb_typeof(metadata) = 'object' and octet_length(metadata::text) <= 32000),
+  hash text generated always as (public.continuum_source_hash(body)) stored,
+  created double precision not null default extract(epoch from now()),
+  foreign key (brain_id, owner_id) references public.continuum_brains(id, owner_id) on delete cascade,
+  unique (brain_id, hash)
+);
+create index if not exists continuum_brains_owner on public.continuum_brains(owner_id, created);
+create index if not exists continuum_sources_owner_brain on public.continuum_sources(owner_id, brain_id, created);
+create index if not exists continuum_sources_search on public.continuum_sources using gin (to_tsvector('simple', title || ' ' || body));
+
+alter table public.continuum_brains enable row level security;
+alter table public.continuum_sources enable row level security;
+do $$ begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'continuum_brains' and policyname = 'continuum_brains_owner') then
+    create policy continuum_brains_owner on public.continuum_brains to authenticated
+      using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'continuum_sources' and policyname = 'continuum_sources_owner') then
+    create policy continuum_sources_owner on public.continuum_sources to authenticated
+      using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
+  end if;
+end $$;
+revoke all on public.continuum_brains, public.continuum_sources from public, anon, authenticated;
+grant select, insert on public.continuum_brains, public.continuum_sources to authenticated;
+grant update (name, direction, cycle_limit) on public.continuum_brains to authenticated;
+
+create or replace function public.continuum_schema_status() returns jsonb
+language sql stable security invoker set search_path = '' as $$
+  select jsonb_build_object('version', 1, 'storage', true, 'worker', false);
+$$;
+revoke all on function public.continuum_schema_status() from public;
+grant execute on function public.continuum_schema_status() to anon, authenticated;
+
+-- All reads and writes execute as the signed-in caller and remain subject to RLS.
+create or replace function public.continuum_api(p_path text, p_body jsonb default null)
+returns jsonb language plpgsql security invoker set search_path = '' as $$
+declare
+  parts text[];
+  brain public.continuum_brains%rowtype;
+  forked public.continuum_brains%rowtype;
+  src public.continuum_sources%rowtype;
+  result jsonb;
+  source_text text;
+  source_title text;
+  query_text text;
+  inserted boolean;
+begin
+  if auth.uid() is null then raise exception 'Sign in to open your private memory.'; end if;
+  if p_body is not null and jsonb_typeof(p_body) <> 'object' then raise exception 'Request must be an object.'; end if;
+  if p_path is null or length(p_path) > 160 then raise exception 'Invalid memory path.'; end if;
+  parts := string_to_array(p_path, '/');
+  if p_path = 'brains' then
+    if p_body is null then
+      select coalesce(jsonb_agg(to_jsonb(b) || jsonb_build_object('source_count',
+        (select count(*) from public.continuum_sources s where s.brain_id = b.id)) order by b.created, b.id), '[]'::jsonb)
+      into result from public.continuum_brains b;
+      return result;
+    end if;
+    insert into public.continuum_brains(name, direction, cycle_limit)
+      values (btrim(coalesce(p_body->>'name', '')), coalesce(p_body->>'direction', ''), coalesce((p_body->>'cycle_limit')::integer, 500))
+      returning * into brain;
+    return to_jsonb(brain);
+  end if;
+  if parts[1] <> 'brains' or cardinality(parts) not between 2 and 3 then raise exception 'Unknown memory operation.'; end if;
+  select * into brain from public.continuum_brains where id = parts[2]::uuid;
+  if not found then raise exception 'Brain not found in this account.'; end if;
+  if cardinality(parts) = 2 and p_body is null then
+    select coalesce(jsonb_agg(to_jsonb(s) order by s.created desc, s.id), '[]'::jsonb)
+      into result from public.continuum_sources s where s.brain_id = brain.id;
+    return jsonb_build_object('brain', to_jsonb(brain), 'sources', result,
+      'links', '[]'::jsonb, 'jobs', '[]'::jsonb, 'experiments', '[]'::jsonb,
+      'state', 'Cloud memory ready', 'pending', 0, 'worker_connected', false,
+      'model_connected', false, 'engine', 'Cloud storage');
+  end if;
+  if p_body is null then raise exception 'This operation needs a request body.'; end if;
+  if parts[3] in ('sources', 'imports') then
+    source_text := btrim(coalesce(p_body->>'body', ''));
+    source_title := btrim(coalesce(p_body->>'title', ''));
+    if length(source_text) = 0 then raise exception 'Source text cannot be empty.'; end if;
+    if length(source_text) > 200000 then raise exception 'Source text exceeds 200,000 characters. Split this import.'; end if;
+    if length(source_title) not between 1 and 200 then raise exception 'Source title must be 1–200 characters.'; end if;
+    insert into public.continuum_sources(brain_id, title, body, origin, metadata)
+      values (brain.id, source_title, source_text, coalesce(p_body->>'origin', 'note'), coalesce(p_body->'metadata', '{}'::jsonb))
+      on conflict (brain_id, hash) do nothing returning * into src;
+    inserted := found;
+    if not inserted then
+      select * into src from public.continuum_sources where brain_id = brain.id
+        and hash = encode(sha256(convert_to(source_text, 'UTF8')), 'hex');
+    end if;
+    if parts[3] = 'sources' then return to_jsonb(src); end if;
+    return jsonb_build_object('source_id', src.id, 'hash', src.hash, 'status', case when inserted then 'imported' else 'duplicate' end);
+  elsif parts[3] = 'import-status' then
+    if jsonb_typeof(p_body->'source_ids') is distinct from 'array' then raise exception 'Choose source IDs to check.'; end if;
+    if jsonb_array_length(p_body->'source_ids') > 500 then raise exception 'Check at most 500 sources at once.'; end if;
+    select coalesce(jsonb_agg(jsonb_build_object('source_id', s.id, 'status', 'saved',
+      'detail', 'Saved to private cloud memory. Automatic analysis is not connected.')), '[]'::jsonb)
+      into result from public.continuum_sources s where s.brain_id = brain.id and s.id::text in
+      (select jsonb_array_elements_text(p_body->'source_ids'));
+    return result;
+  elsif parts[3] = 'configure' then
+    if coalesce((p_body->>'active')::boolean, false) then raise exception 'The cloud research worker is not connected yet. Your saved sources remain available.'; end if;
+    update public.continuum_brains set name = coalesce(p_body->>'name', name),
+      direction = coalesce(p_body->>'direction', direction),
+      cycle_limit = coalesce((p_body->>'cycle_limit')::integer, cycle_limit)
+      where id = brain.id returning * into brain;
+    return to_jsonb(brain);
+  elsif parts[3] = 'fork' then
+    insert into public.continuum_brains(name, direction, parent_id, cycle_limit)
+      values (coalesce(p_body->>'name', brain.name || ' fork'), coalesce(p_body->>'direction', brain.direction), brain.id, coalesce((p_body->>'cycle_limit')::integer, brain.cycle_limit))
+      returning * into forked;
+    insert into public.continuum_sources(brain_id, title, body, origin, metadata)
+      select forked.id, title, body, origin, metadata from public.continuum_sources where brain_id = brain.id;
+    return to_jsonb(forked);
+  elsif parts[3] = 'ask' then
+    query_text := btrim(coalesce(p_body->>'question', ''));
+    if length(query_text) not between 1 and 2000 then raise exception 'Enter a question up to 2,000 characters.'; end if;
+    select coalesce(jsonb_agg(jsonb_build_object('source_id', x.id, 'title', x.title, 'excerpt', left(x.body, 900)) order by x.rank desc), '[]'::jsonb)
+      into result from (select s.id, s.title, s.body,
+        ts_rank(to_tsvector('simple', s.title || ' ' || s.body), websearch_to_tsquery('simple', query_text)) as rank
+        from public.continuum_sources s where s.brain_id = brain.id and
+        to_tsvector('simple', s.title || ' ' || s.body) @@ websearch_to_tsquery('simple', query_text)
+        order by rank desc, s.id limit 5) x;
+    return jsonb_build_object('citations', result, 'answer', case when jsonb_array_length(result) > 0
+      then 'Source retrieval found matching words in your saved notes. These are original excerpts; AI synthesis is not connected yet.'
+      else 'No matching sources in this brain. Try specific words from your notes. This is keyword retrieval; AI synthesis is not connected yet.' end);
+  elsif parts[3] = 'experiments' then
+    raise exception 'Training experiments currently run in the local laboratory. A cloud training worker is not connected yet.';
+  end if;
+  raise exception 'This memory operation is not available yet.';
+end;
+$$;
+revoke all on function public.continuum_api(text, jsonb) from public, anon;
+grant execute on function public.continuum_api(text, jsonb) to authenticated;
+notify pgrst, 'reload schema';
+commit;

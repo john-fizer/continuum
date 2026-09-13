@@ -1,0 +1,18 @@
+# Never upload private memory, local secrets, caches, or original transcript seeds.
+data/
+.env*
+.venv/
+.wrangler/
+.openai/
+.git/
+node_modules/
+dist/
+dist-vercel/
+backend/
+__pycache__/
+*.tsbuildinfo
+work/
+outputs/
+
+# Superseded visual reference; the live renderer no longer uses this image.
+public/art/neural-field.png

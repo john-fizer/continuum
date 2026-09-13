@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createScene, projectNode} from '../app/neural-model.mjs';
+test('empty memory has no invented interactive knowledge',()=>{const s=createScene([],[]);assert.equal(s.nodes.length,0);assert.equal(s.edges.length,0);assert.ok(s.branches.length>0);assert.equal(s.preview,true);});
+test('source positions stay stable across input order and additions',()=>{const a=createScene([{id:'a',title:'A'},{id:'b',title:'B'}],[]);const b=createScene([{id:'b',title:'B'},{id:'c',title:'C'},{id:'a',title:'A'}],[]);assert.deepEqual(a.nodes.find(n=>n.id==='a'),b.nodes.find(n=>n.id==='a'));});
+test('only existing nondismissed source links are rendered',()=>{const s=createScene([{id:'a',title:'A'},{id:'b',title:'B'}],[{source_a:'a',source_b:'b',status:'candidate'},{source_a:'a',source_b:'missing',status:'accepted'},{source_a:'b',source_b:'a',status:'dismissed'}]);assert.equal(s.edges.length,1);});
+test('breathing moves nodes within a bounded distance and freezes for reduced motion',()=>{const n=createScene([{id:'a',title:'A'}],[]).nodes[0];const a=projectNode(n,0,800,500,1,false);let changed=false;for(let t=1;t<200;t++){const b=projectNode(n,t,800,500,1,false);assert.ok(Math.hypot(b.x-a.x,b.y-a.y)<35);assert.ok(Number.isFinite(b.x)&&Number.isFinite(b.y));if(b.x!==a.x)changed=true;}assert.ok(changed);assert.deepEqual(projectNode(n,0,800,500,1,true),projectNode(n,90,800,500,1,true));});

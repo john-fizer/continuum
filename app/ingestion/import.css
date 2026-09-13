@@ -1,0 +1,216 @@
+.import-workspace {
+  display: grid;
+  gap: 18px;
+}
+.import-intake {
+  padding: 24px;
+}
+.import-intake > p {
+  font-size: 0.88rem;
+  max-width: 90ch;
+}
+.import-controls {
+  display: flex;
+  align-items: end;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: 22px 0;
+}
+.import-controls > label {
+  flex: 1;
+  min-width: 200px;
+  font-size: 0.76rem;
+}
+.import-controls select {
+  margin-top: 7px;
+  background: #04131c;
+}
+.import-controls button,
+.import-save button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 15px;
+  border: 1px solid #3f7185;
+  border-radius: 6px;
+  background: #12384a;
+  color: #c4ecfa;
+  font-size: 0.78rem;
+}
+.import-notice {
+  background: #3b2c142e;
+  border-left: 2px solid #bb995d;
+  padding: 10px 13px;
+  margin: 12px 0;
+  color: #d8c298 !important;
+  font-size: 0.76rem !important;
+  line-height: 1.6;
+}
+.import-review {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.4fr);
+  gap: 18px;
+}
+.import-list,
+.import-preview {
+  padding: 22px;
+  min-width: 0;
+}
+.import-items {
+  max-height: 58vh;
+  overflow: auto;
+  margin: 14px -7px;
+}
+.import-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 8px;
+  border-bottom: 1px solid #203947;
+}
+.import-item.active {
+  background: #15405855;
+  border-left: 2px solid #7dd1e9;
+}
+.import-item input,
+.import-selection input {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  accent-color: #7cd9f3;
+}
+.import-item > button {
+  min-width: 0;
+  flex: 1;
+  background: none;
+  border: 0;
+  color: #c2dae5;
+  text-align: left;
+}
+.import-item strong {
+  font-size: 0.78rem;
+  font-weight: 450;
+  display: block;
+  overflow-wrap: anywhere;
+}
+.import-item small {
+  font-size: 0.65rem;
+  display: block;
+  color: #86a7b8;
+  margin-top: 4px;
+}
+.import-item > svg {
+  color: #91d7b2;
+}
+.import-selection {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.65rem;
+  color: #8cabb9;
+}
+.import-selection label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+}
+.import-save {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0;
+  flex-wrap: wrap;
+}
+.import-preview h3 {
+  margin: 10px 0 14px;
+  font-size: 1rem;
+}
+.import-preview dl {
+  display: grid;
+  gap: 5px;
+}
+.import-preview dl > div {
+  display: grid;
+  grid-template-columns: 135px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 0.72rem;
+}
+.import-preview dt {
+  color: #829daa;
+  text-transform: capitalize;
+}
+.import-preview dd {
+  color: #bfd4e0;
+  overflow-wrap: anywhere;
+}
+.import-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 58vh;
+  overflow: auto;
+  padding: 18px 0;
+  border-top: 1px solid #294654;
+  margin-top: 18px;
+  font:
+    0.87rem/1.8 'Segoe UI',
+    sans-serif;
+  color: #bed3df;
+}
+.import-progress {
+  display: block;
+  font-size: 0.8rem;
+  color: #9dd9ed;
+}
+.import-errors {
+  padding: 14px 18px;
+  background: #38221155;
+  border: 1px solid #6c5137;
+  border-radius: 5px;
+  max-height: 160px;
+  overflow: auto;
+}
+.import-errors p {
+  font-size: 0.76rem;
+  color: #edc8a6;
+  margin: 4px 0;
+}
+.import-list .fine {
+  font-size: 0.66rem;
+  line-height: 1.7;
+}
+.source-provenance {
+  margin-top: 15px;
+  color: #9ebdcc;
+  font-size: 0.8rem;
+}
+.source-provenance pre {
+  font-size: 0.7rem;
+  max-height: 160px;
+  overflow: auto;
+}
+@media (max-width: 850px) {
+  .import-review {
+    grid-template-columns: 1fr;
+  }
+  .import-items {
+    max-height: 340px;
+  }
+  .import-intake,
+  .import-list,
+  .import-preview {
+    padding: 19px;
+  }
+  .import-controls {
+    gap: 12px;
+  }
+  .import-controls > label {
+    min-width: 100%;
+    order: -1;
+  }
+  .import-preview dl > div {
+    grid-template-columns: 115px 1fr;
+  }
+  .import-controls button {
+    font-size: 0.72rem;
+  }
+}

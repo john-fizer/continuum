@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "dist-vercel",
+  "installCommand": "npm ci",
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "crons": [{ "path": "/api/worker", "schedule": "0 4 * * *" }]
+}
