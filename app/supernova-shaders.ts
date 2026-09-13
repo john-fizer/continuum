@@ -15,8 +15,8 @@ varying vec3 vPosition; varying vec3 vNormal; varying vec3 vView;
 ${noise}
 void main(){
   vec3 p=position;
-  float n=fbm(p*3.2+vec3(uTime*.15,-uTime*.11,uTime*.08));
-  p*=1.+(n-.5)*.42+.025*sin(uTime*.7);
+  float n=fbm(p*3.2+vec3(uTime*.42,-uTime*.34,uTime*.25));
+  p*=1.+(n-.5)*.52+.045*sin(uTime*1.45);
   vPosition=p; vNormal=normalize(normalMatrix*normal);
   vec4 mv=modelViewMatrix*vec4(p,1.); vView=normalize(-mv.xyz);
   gl_Position=projectionMatrix*mv;
@@ -25,8 +25,8 @@ export const coreFragment = /* glsl */ `
 uniform float uTime; varying vec3 vPosition; varying vec3 vNormal; varying vec3 vView;
 ${noise}
 void main(){
-  vec3 p=vPosition*4.8+vec3(uTime*.08,-uTime*.18,0.);
-  float n=fbm(p+fbm(p*1.6));
+  vec3 p=vPosition*4.8+vec3(uTime*.28,-uTime*.46,uTime*.12);
+  float n=fbm(p+fbm(p*1.9+vec3(uTime*.19)));
   float threads=pow(1.-abs(sin(n*19.+vPosition.y*2.)),7.);
   float facing=max(0.,dot(normalize(vNormal),vView));
   float rim=pow(1.-facing,2.);

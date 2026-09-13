@@ -397,6 +397,7 @@ export function mountSupernova(
   // into the synthesis core while warm paths carry novel associations back out.
   // These are deliberately continuous trajectories, never a node-link diagram.
   const signalField = new THREE.Group();
+  const fieldUniforms = { ...uniforms, uStrength: { value: initial.attentionMode ? 1 : 0.24 } };
   const streamStarts: number[] = [], streamEnds: number[] = [], streamColors: number[] = [], streamSeeds: number[] = [];
   const trailPositions: number[] = [], trailColors: number[] = [];
   const streamCount = compact ? 1500 : 4300;
@@ -452,16 +453,17 @@ export function mountSupernova(
   streamGeometry.setAttribute('color', new THREE.Float32BufferAttribute(streamColors, 3));
   streamGeometry.setAttribute('aSeed', new THREE.Float32BufferAttribute(streamSeeds, 1));
   const streamParticles = new THREE.Points(streamGeometry, new THREE.ShaderMaterial({
-    uniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: fieldUniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     vertexShader: `uniform float uTime; uniform float uPixelRatio; attribute vec3 aEnd; attribute vec3 color; attribute float aSeed;
       varying vec3 vColor; varying float vAlpha;
-      void main(){ float velocity=.12+fract(aSeed*17.)*.18; float wave=fract(aSeed+uTime*velocity); vec3 p=mix(position,aEnd,wave);
+      void main(){ float velocity=.25+fract(aSeed*17.)*.42; float wave=fract(aSeed+uTime*velocity); vec3 p=mix(position,aEnd,wave);
         float breath=.65+.35*sin(uTime*1.3+aSeed*40.); vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv;
-        gl_PointSize=clamp(uPixelRatio*(8.+fract(aSeed*91.)*18.)/max(1.,-mv.z),1.,7.); vColor=color*(.75+breath); vAlpha=.18+breath*.62; }`,
-    fragmentShader: particleFragment,
+        gl_PointSize=clamp(uPixelRatio*(9.+fract(aSeed*91.)*20.)/max(1.,-mv.z),1.,8.); vColor=color*(.75+breath); vAlpha=.18+breath*.62; }`,
+    fragmentShader: `uniform float uStrength; varying vec3 vColor; varying float vAlpha;
+      void main(){ float r=length(gl_PointCoord-.5)*2.; if(r>1.) discard; float a=exp(-r*r*4.5)*(1.-smoothstep(.5,1.,r)); gl_FragColor=vec4(vColor,a*vAlpha*uStrength); }`,
   }));
   signalField.add(streamParticles);
-  signalField.visible = initial.attentionMode === true;
+  signalField.visible = true;
   universe.add(signalField);
 
   const electronGeometry = new THREE.BufferGeometry();
@@ -507,11 +509,11 @@ export function mountSupernova(
       vertexShader: `uniform float uTime; uniform float uPixelRatio;
       attribute vec3 aEnd; attribute vec3 color; attribute float aSeed;
       varying vec3 vColor; varying float vAlpha;
-      void main(){float u=fract(aSeed+uTime*.35); vec3 p=mix(position,aEnd,u);
+      void main(){float u=fract(aSeed+uTime*.78); vec3 p=mix(position,aEnd,u);
         p+=normalize(p)*.04*sin(length(p)*5.-uTime*.7);
         vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;
-        gl_PointSize=clamp(uPixelRatio*22./max(1.,-mv.z),1.,5.);
-        vColor=color;vAlpha=sin(u*3.14159)*.65;}`,
+        gl_PointSize=clamp(uPixelRatio*27./max(1.,-mv.z),1.,6.);
+        vColor=color;vAlpha=sin(u*3.14159)*.86;}`,
       fragmentShader: particleFragment,
     }),
   );
@@ -648,13 +650,14 @@ export function mountSupernova(
     uniforms.uTime.value = t;
     decorativeElectrons.visible = true;
     cortex.visible = controls.attentionMode === true;
-    signalField.visible = controls.attentionMode === true;
+    signalField.visible = true;
+    fieldUniforms.uStrength.value = controls.attentionMode ? 1 : 0.24;
     signalField.rotation.z = Math.sin(t * 0.12) * 0.06;
     signalField.rotation.y = t * 0.035;
-    streamTrails.material.opacity = controls.attentionMode ? 0.065 + Math.sin(t * 1.1) * 0.018 : 0;
+    streamTrails.material.opacity = controls.attentionMode ? 0.065 + Math.sin(t * 1.1) * 0.018 : 0.022;
     filaments.visible = !controls.attentionMode;
     plasmaCorona.visible = controls.attentionMode === true;
-    plasmaCorona.scale.setScalar(0.76 + Math.sin(t * 1.18) * 0.07 + Math.sin(t * 0.31) * 0.035);
+    plasmaCorona.scale.setScalar(0.76 + Math.sin(t * 1.68) * 0.095 + Math.sin(t * 0.43) * 0.05);
     plasmaCorona.children.forEach((loop) => {
       loop.rotation.z += loop.userData.spin * (reduced ? 0.012 : 0.026);
       loop.rotation.x += Math.sin(t * 0.62 + loop.userData.phase) * 0.0018;
