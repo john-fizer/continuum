@@ -167,6 +167,10 @@ export function mountSupernova(
       last = p;
     }
   }
+  // Keep the orbital loops available for the source scene, but the primary
+  // resting composition starts at the branching geometry below. This avoids
+  // a flat, hand-drawn-looking squiggle across the field.
+  const branchVertexStart = filamentPositions.length / 3;
   // Forked 3D axons carry waves out through the distant particle field.
   function grow(
     start: THREE.Vector3,
@@ -294,7 +298,7 @@ export function mountSupernova(
       new THREE.Color(
         i % 7 === 0 ? '#ffb86c' : i % 3 === 0 ? '#b183dd' : '#83c8e4',
       )
-        .multiplyScalar(0.65 + rand() * 0.6)
+        .multiplyScalar(0.34 + rand() * 0.34)
         .toArray(),
       i * 3,
     );
@@ -348,7 +352,7 @@ export function mountSupernova(
     new THREE.PointsMaterial({
       size: compact ? 0.027 : 0.022,
       transparent: true,
-      opacity: 0.76,
+      opacity: 0.38,
       vertexColors: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -380,7 +384,7 @@ export function mountSupernova(
     cortexLineGeometry,
     new THREE.LineBasicMaterial({
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.075,
       vertexColors: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
@@ -428,7 +432,7 @@ export function mountSupernova(
   trailGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trailPositions, 3));
   trailGeometry.setAttribute('color', new THREE.Float32BufferAttribute(trailColors, 3));
   const streamTrails = new THREE.LineSegments(trailGeometry, new THREE.LineBasicMaterial({
-    transparent: true, opacity: 0.16, vertexColors: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    transparent: true, opacity: 0.065, vertexColors: true, depthWrite: false, blending: THREE.AdditiveBlending,
   }));
   signalField.add(streamTrails);
   for (let i = 0; i < streamCount; i++) {
@@ -647,7 +651,7 @@ export function mountSupernova(
     signalField.visible = controls.attentionMode === true;
     signalField.rotation.z = Math.sin(t * 0.12) * 0.06;
     signalField.rotation.y = t * 0.035;
-    streamTrails.material.opacity = controls.attentionMode ? 0.16 + Math.sin(t * 1.1) * 0.035 : 0;
+    streamTrails.material.opacity = controls.attentionMode ? 0.065 + Math.sin(t * 1.1) * 0.018 : 0;
     filaments.visible = !controls.attentionMode;
     plasmaCorona.visible = controls.attentionMode === true;
     plasmaCorona.scale.setScalar(0.76 + Math.sin(t * 1.18) * 0.07 + Math.sin(t * 0.31) * 0.035);
@@ -659,8 +663,8 @@ export function mountSupernova(
     cortex.rotation.z = Math.sin(t * 0.13) * 0.12;
     cortex.scale.setScalar(1 + Math.sin(t * 0.6) * 0.018);
     filamentsGeometry.setDrawRange(
-      0,
-      controls.attentionMode ? 24 * 180 * 4 : Infinity,
+      controls.attentionMode ? 0 : branchVertexStart,
+      controls.attentionMode ? 0 : Infinity,
     );
     conceptFields.rotation.z = t * 0.14;
     conceptFields.rotation.x = Math.sin(t * 0.21) * 0.08;
