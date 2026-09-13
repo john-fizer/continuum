@@ -263,13 +263,13 @@ export function mountSupernova(
   const plasmaCorona = new THREE.Group();
   const coronaColors = ['#ffdf9e', '#ff8748', '#f1a7e9', '#ffd074', '#77e5ff', '#ffb26b'];
   for (let ring = 0; ring < 7; ring++) {
-    const radius = 1.16 + ring * 0.19 + (ring % 2 ? 0.055 : 0);
+    const radius = 1.04 + ring * 0.105 + (ring % 2 ? 0.035 : 0);
     const loop = new THREE.Mesh(
       new THREE.TorusGeometry(radius, 0.011 + (ring % 3) * 0.004, 6, 128),
       new THREE.MeshBasicMaterial({
         color: coronaColors[ring % coronaColors.length],
         transparent: true,
-        opacity: 0.22 + (ring % 3) * 0.055,
+        opacity: 0.07 + (ring % 3) * 0.025,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
@@ -580,38 +580,38 @@ export function mountSupernova(
     nodeMeshes.set(n.id, mesh);
     nodeGroup.add(mesh);
   }
-  // A focused concept is a small recursive field, not a labeled endpoint on a wire.
-  // The geometry makes the working graph read as nested attention around the core.
-  const conceptFields = new THREE.Group();
-  for (const n of data.nodes.filter((node) => node.id.startsWith('term:'))) {
+  // Recall markers are activation blooms: a small cloud of energy that wakes
+  // only for the evidence in focus. This keeps recall inside the same visual
+  // language as the field instead of drawing a separate highlighted diagram.
+  const activationBlooms = new THREE.Group();
+  const bloomMeshes = new Map<string, THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>>();
+  for (const [termIndex, n] of data.nodes.filter((node) => node.id.startsWith('term:')).entries()) {
     const anchor = nodeMeshes.get(n.id);
     if (!anchor) continue;
-    const field = new THREE.Group();
-    field.position.copy(anchor.position);
-    for (let layer = 0; layer < 3; layer++) {
-      const points: THREE.Vector3[] = [];
-      const count = 42;
-      for (let step = 0; step < count; step++) {
-        const a = (step / count) * Math.PI * 2;
-        const ripple = 1 + Math.sin(a * (3 + layer) + n.phase) * 0.16;
-        const radius = (0.17 + layer * 0.115) * ripple;
-        points.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, Math.sin(a * 2 + layer) * 0.05));
-      }
-      const loop = new THREE.LineLoop(
-        new THREE.BufferGeometry().setFromPoints(points),
-        new THREE.LineBasicMaterial({
-          color: new THREE.Color(n.color).multiplyScalar(1.8),
-          transparent: true,
-          opacity: 0.22 - layer * 0.045,
-          blending: THREE.AdditiveBlending,
-        }),
-      );
-      loop.rotation.z = layer * 0.9;
-      field.add(loop);
+    const pointCount = compact ? 32 : 76;
+    const positions = new Float32Array(pointCount * 3);
+    for (let point = 0; point < pointCount; point++) {
+      const direction = new THREE.Vector3(rand() - .5, rand() - .5, rand() - .5).normalize();
+      const radius = .18 + Math.pow(rand(), .55) * .54;
+      positions.set(direction.multiplyScalar(radius).toArray(), point * 3);
     }
-    conceptFields.add(field);
+    const bloom = new THREE.Points(
+      new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(positions, 3)),
+      new THREE.PointsMaterial({
+        color: ['#61dcff', '#ffbd72', '#ce9bff'][termIndex % 3],
+        size: .04,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    bloom.position.copy(anchor.position);
+    bloom.userData.phase = n.phase;
+    bloomMeshes.set(n.id, bloom);
+    activationBlooms.add(bloom);
   }
-  nodeGroup.add(conceptFields);
+  nodeGroup.add(activationBlooms);
   for (const edge of data.edges) {
     const a = nodeMeshes.get(edge.source_a),
       b = nodeMeshes.get(edge.source_b);
@@ -669,7 +669,7 @@ export function mountSupernova(
     streamTrails.material.opacity = controls.attentionMode ? 0.065 + Math.sin(t * 1.1) * 0.018 : 0.022;
     filaments.visible = !controls.attentionMode;
     plasmaCorona.visible = controls.attentionMode === true;
-    plasmaCorona.scale.setScalar(0.82 + Math.sin(t * 1.68) * 0.095 + Math.sin(t * 0.43) * 0.05);
+    plasmaCorona.scale.setScalar(0.72 + Math.sin(t * 1.68) * 0.06 + Math.sin(t * 0.43) * 0.03);
     plasmaCorona.children.forEach((loop) => {
       const velocity = loop.userData.spin as THREE.Vector3;
       const pace = reduced ? 0.35 : 1;
@@ -685,8 +685,8 @@ export function mountSupernova(
       controls.attentionMode ? 0 : branchVertexStart,
       controls.attentionMode ? 0 : Infinity,
     );
-    conceptFields.rotation.z = t * 0.14;
-    conceptFields.rotation.x = Math.sin(t * 0.21) * 0.08;
+    activationBlooms.rotation.z = t * 0.1;
+    activationBlooms.rotation.x = Math.sin(t * 0.17) * 0.045;
     core.scale.setScalar(
       (controls.attentionMode ? 0.86 : controls.focusId ? 0.68 : 1) *
         (1 + Math.sin(t * 1.18) * 0.07 + Math.sin(t * 0.31) * 0.025),
@@ -754,9 +754,16 @@ export function mountSupernova(
         controls.focusId === n.id;
       mesh.scale.setScalar(active ? 1.8 : 1);
       mesh.material.color
-        .set(n.color)
+        .set(active ? '#ffca82' : controls.attentionMode ? '#58d9f1' : n.color)
         .multiplyScalar(active ? 3.2 : controls.attentionMode ? 0.6 : 2.5);
       mesh.material.opacity = controls.attentionMode ? (active ? 1 : 0.06) : 1;
+      const bloom = bloomMeshes.get(n.id);
+      if (bloom) {
+        const bloomActive = active && controls.attentionMode === true;
+        bloom.visible = bloomActive;
+        bloom.material.opacity = bloomActive ? .32 + Math.sin(t * 2.4 + bloom.userData.phase) * .12 : 0;
+        bloom.scale.setScalar(1 + Math.sin(t * 1.7 + bloom.userData.phase) * .18);
+      }
     }
     composer.render();
   }
