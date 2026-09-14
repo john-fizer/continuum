@@ -47,7 +47,7 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
       void fetch('/api/worker', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      }).catch(() => undefined);
     }
     // Opening a private brain can wake only the signed-in user's queued work.
     // This lets an imported backlog resume promptly without exposing the cron secret.
@@ -61,7 +61,7 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
       void fetch('/api/worker', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      }).catch(() => undefined);
     }
     return data as T;
   }
