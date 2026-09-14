@@ -49,6 +49,20 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
     }
+    // Opening a private brain can wake only the signed-in user's queued work.
+    // This lets an imported backlog resume promptly without exposing the cron secret.
+    if (
+      snapshot &&
+      data &&
+      typeof data === 'object' &&
+      'pending' in data &&
+      Number((data as { pending?: unknown }).pending || 0) > 0
+    ) {
+      void fetch('/api/worker', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+    }
     return data as T;
   }
   const response = await fetch(
