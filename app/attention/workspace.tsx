@@ -38,6 +38,17 @@ type Source = {
   metadata?: Record<string, unknown>;
 };
 type Link = { source_a: string; source_b: string; status: string };
+type StoredConcept = {
+  id: string;
+  label: string;
+  normalized_label?: string;
+  activation_strength?: number;
+};
+type StoredRelationship = {
+  concept_a: string;
+  concept_b: string;
+  relationship_type?: string;
+};
 type Answer = {
   answer: string;
   citations: { source_id: string; title: string; excerpt: string }[];
@@ -51,7 +62,13 @@ export function AttentionWorkspace({
   onCreate,
   onSpeak,
 }: {
-  data: { sources: Source[]; links: Link[]; state: string } | null;
+  data: {
+    sources: Source[];
+    links: Link[];
+    concepts?: StoredConcept[];
+    relationships?: StoredRelationship[];
+    state: string;
+  } | null;
   onAsk: (query: string) => Promise<Answer>;
   onCapture: (title: string, body: string) => Promise<string>;
   onImport: () => void;
@@ -74,7 +91,13 @@ export function AttentionWorkspace({
   const recognition = useRef<BrowserSpeechRecognition | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const sources = data?.sources || [];
-  const attention = workingAttention(seed, result?.citations || [], sources);
+  const attention = workingAttention(
+    seed,
+    result?.citations || [],
+    sources,
+    data?.concepts || [],
+    data?.relationships || [],
+  );
   const selectedId = path.at(-1);
   const concept = attention.concepts.find((c) => c.id === selectedId);
   const source = sources.find((s) => s.id === selectedId);
