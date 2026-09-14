@@ -144,7 +144,12 @@ export default async function handler(request, response) {
       if (finishError) throw finishError;
       completed++;
     } catch (cause) {
-      await db.from('continuum_jobs').update({ status: 'failed', result: cause instanceof Error ? cause.message.slice(0, 1000) : 'Worker failed.', finished: Date.now() / 1000 }).eq('id', job.id);
+      const failure = cause instanceof Error
+        ? cause.message
+        : cause && typeof cause === 'object' && 'message' in cause
+          ? String(cause.message)
+          : String(cause || 'Worker failed.');
+      await db.from('continuum_jobs').update({ status: 'failed', result: failure.slice(0, 1000), finished: Date.now() / 1000 }).eq('id', job.id);
     }
   }
   return response.status(200).json({ completed, queued: Math.max(0, (jobs || []).length - completed) });
