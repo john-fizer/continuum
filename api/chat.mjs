@@ -122,10 +122,12 @@ export default async function handler(request, response) {
     body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.35, max_tokens: 900, chat_template_kwargs: { enable_thinking: false } }),
   });
   const payload = await generated.json();
-  if (!generated.ok)
+  if (!generated.ok) {
+    console.warn('Continuum synthesis fallback', generated.status, String(payload?.error?.message || payload?.error || 'unknown gateway error').slice(0, 240));
     return response.status(200).json(
       extractiveAnswer(question, citations, 'generative synthesis is temporarily unavailable'),
     );
+  }
   const answer = visibleAnswer(payload?.choices?.[0]?.message?.content);
   return response.status(200).json(answer
     ? { answer, citations, mode: 'synthesis' }
