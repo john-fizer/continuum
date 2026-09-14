@@ -34,6 +34,8 @@ export type SceneControls = {
   activatedIds?: string[];
   focusId?: string;
   signal?: AttentionSignal;
+  voiceEnergy?: number;
+  voiceSpectrum?: number[];
 };
 export type Nova = {
   update: (controls: SceneControls) => void;
@@ -84,7 +86,7 @@ export function mountSupernova(
     qualityScale = 1;
   const pointer = new THREE.Vector2(),
     smoothed = new THREE.Vector2();
-  const uniforms = { uTime: { value: time }, uPixelRatio: { value: 1 } };
+  const uniforms = { uTime: { value: time }, uPixelRatio: { value: 1 }, uVoice: { value: 0 } };
   let signalStarted = time;
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
@@ -102,6 +104,8 @@ export function mountSupernova(
     new THREE.SphereGeometry(0.94, 72, 48),
     coreMaterial,
   );
+  core.material.transparent = true;
+  core.material.depthWrite = false;
   universe.add(core);
   const particles = compact ? 22000 : 52000;
   const geometry = new THREE.BufferGeometry();
@@ -291,6 +295,32 @@ export function mountSupernova(
   }
   plasmaCorona.visible = initial.attentionMode === true;
   universe.add(plasmaCorona);
+
+  // A quiet spectral crown becomes visible only while the neural voice is
+  // active. The bars are anchored to the core so speech reads as metabolism,
+  // not a separate dashboard widget.
+  const voiceCrown = new THREE.Group();
+  const voiceBars: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
+  for (let index = 0; index < 28; index++) {
+    const angle = (index / 28) * Math.PI * 2;
+    const bar = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.016, 0.18),
+      new THREE.MeshBasicMaterial({
+        color: index % 3 ? '#82eaff' : '#ffd28e',
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }),
+    );
+    bar.position.set(Math.cos(angle) * 1.34, Math.sin(angle) * 1.34, 0.18);
+    bar.rotation.z = angle - Math.PI / 2;
+    bar.userData = { index, phase: rand() * Math.PI * 2 };
+    voiceCrown.add(bar);
+    voiceBars.push(bar);
+  }
+  voiceCrown.visible = false;
+  universe.add(voiceCrown);
 
   const starCount = compact ? 1800 : 4500,
     starGeometry = new THREE.BufferGeometry();
@@ -660,6 +690,8 @@ export function mountSupernova(
     if (disposed || lost) return;
     const t = reduced ? 3.2 : time;
     uniforms.uTime.value = t;
+    const voiceEnergy = Math.min(1, Math.max(0, controls.voiceEnergy || 0));
+    uniforms.uVoice.value += (voiceEnergy - uniforms.uVoice.value) * 0.22;
     decorativeElectrons.visible = true;
     cortex.visible = controls.attentionMode === true;
     signalField.visible = true;
@@ -669,7 +701,7 @@ export function mountSupernova(
     streamTrails.material.opacity = controls.attentionMode ? 0.065 + Math.sin(t * 1.1) * 0.018 : 0.022;
     filaments.visible = !controls.attentionMode;
     plasmaCorona.visible = controls.attentionMode === true;
-    plasmaCorona.scale.setScalar(0.72 + Math.sin(t * 1.68) * 0.06 + Math.sin(t * 0.43) * 0.03);
+    plasmaCorona.scale.setScalar(0.72 + Math.sin(t * 1.68) * 0.06 + Math.sin(t * 0.43) * 0.03 + voiceEnergy * 0.14);
     plasmaCorona.children.forEach((loop) => {
       const velocity = loop.userData.spin as THREE.Vector3;
       const pace = reduced ? 0.35 : 1;
@@ -677,6 +709,15 @@ export function mountSupernova(
       loop.rotation.y += velocity.y * pace;
       loop.rotation.z += velocity.z * pace;
       loop.rotation.x += Math.sin(t * 0.82 + loop.userData.phase) * 0.0018;
+    });
+    voiceCrown.visible = controls.attentionMode === true && voiceEnergy > 0.012;
+    const spectrum = controls.voiceSpectrum || [];
+    voiceBars.forEach((bar) => {
+      const level = spectrum[bar.userData.index % Math.max(1, spectrum.length)] || 0;
+      const scale = 0.25 + Math.min(1, level * 1.8 + voiceEnergy * 0.6);
+      bar.scale.y = scale;
+      bar.material.opacity = Math.min(0.5, voiceEnergy * 0.38 + level * 0.22);
+      bar.position.z = 0.14 + Math.sin(t * 3.2 + bar.userData.phase) * voiceEnergy * 0.12;
     });
     cortex.rotation.y = t * 0.09;
     cortex.rotation.z = Math.sin(t * 0.13) * 0.12;
@@ -689,9 +730,10 @@ export function mountSupernova(
     activationBlooms.rotation.x = Math.sin(t * 0.17) * 0.045;
     core.scale.setScalar(
       (controls.attentionMode ? 0.86 : controls.focusId ? 0.68 : 1) *
-        (1 + Math.sin(t * 1.18) * 0.07 + Math.sin(t * 0.31) * 0.025),
+        (1 + Math.sin(t * 1.18) * 0.07 + Math.sin(t * 0.31) * 0.025 + voiceEnergy * 0.17),
     );
-    shell.scale.setScalar(controls.attentionMode ? 0.8 + Math.sin(t * 1.18) * 0.045 : 1);
+    shell.scale.setScalar(controls.attentionMode ? 0.8 + Math.sin(t * 1.18) * 0.045 + voiceEnergy * 0.13 : 1);
+    bloom.strength = 0.5 + voiceEnergy * 0.52;
     core.position.z = controls.focusId ? -0.3 : 0;
     const signal = controls.signal;
     const progress = reduced

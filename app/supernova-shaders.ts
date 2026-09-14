@@ -10,19 +10,19 @@ float fbm(vec3 p) { float n=0.; float a=.55; for(int i=0;i<4;i++){ n+=a*noise3(p
 `;
 
 export const coreVertex = /* glsl */ `
-uniform float uTime;
+uniform float uTime; uniform float uVoice;
 varying vec3 vPosition; varying vec3 vNormal; varying vec3 vView;
 ${noise}
 void main(){
   vec3 p=position;
   float n=fbm(p*3.2+vec3(uTime*.42,-uTime*.34,uTime*.25));
-  p*=1.+(n-.5)*.52+.045*sin(uTime*1.45);
+  p*=1.+(n-.5)*(.52+uVoice*.32)+.045*sin(uTime*(1.45+uVoice*2.6));
   vPosition=p; vNormal=normalize(normalMatrix*normal);
   vec4 mv=modelViewMatrix*vec4(p,1.); vView=normalize(-mv.xyz);
   gl_Position=projectionMatrix*mv;
 }`;
 export const coreFragment = /* glsl */ `
-uniform float uTime; varying vec3 vPosition; varying vec3 vNormal; varying vec3 vView;
+uniform float uTime; uniform float uVoice; varying vec3 vPosition; varying vec3 vNormal; varying vec3 vView;
 ${noise}
 void main(){
   vec3 p=vPosition*4.8+vec3(uTime*.28,-uTime*.46,uTime*.12);
@@ -34,8 +34,9 @@ void main(){
   vec3 fire=mix(vec3(1.7,.14,.035),vec3(2.8,1.3,.18),smoothstep(.28,.7,n));
   vec3 col=mix(dark,fire*.4,smoothstep(.28,.72,n));
   col+=threads*vec3(1.6,.65,.08)+rim*vec3(1.5,.16,.02);
-  col+=pow(facing,18.)*vec3(2.2,1.4,.6);
-  gl_FragColor=vec4(col,1.);
+  col+=pow(facing,18.)*vec3(2.2,1.4,.6)*(1.+uVoice*.55);
+  float edge=1.-smoothstep(.72,1.42,length(vPosition));
+  gl_FragColor=vec4(col,.76+.18*edge+.04*uVoice);
 }`;
 
 export const shellVertex = /* glsl */ `

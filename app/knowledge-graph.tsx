@@ -23,6 +23,8 @@ export function KnowledgeGraph({
   activatedIds = [],
   focusId,
   signal,
+  voiceEnergy = 0,
+  voiceSpectrum = [],
 }: {
   nodes: Source[];
   links: Link[];
@@ -32,6 +34,8 @@ export function KnowledgeGraph({
   activatedIds?: string[];
   focusId?: string;
   signal?: AttentionSignal;
+  voiceEnergy?: number;
+  voiceSpectrum?: number[];
 }) {
   const [zoom, setZoom] = useState(1),
     [paused, setPaused] = useState(false),
@@ -51,6 +55,8 @@ export function KnowledgeGraph({
     activatedIds,
     focusId,
     signal,
+    voiceEnergy,
+    voiceSpectrum,
   });
   const signature = JSON.stringify({
     nodes: nodes.map((n) => ({ id: n.id, title: n.title })),
@@ -87,9 +93,11 @@ export function KnowledgeGraph({
       activatedIds,
       focusId,
       signal,
+      voiceEnergy,
+      voiceSpectrum,
     };
     engine.current?.update(controls.current);
-  }, [zoom, paused, cinematic, attentionMode, activatedIds, focusId, signal]);
+  }, [zoom, paused, cinematic, attentionMode, activatedIds, focusId, signal, voiceEnergy, voiceSpectrum]);
   useEffect(() => {
     let disposed = false;
     const element = canvas.current,

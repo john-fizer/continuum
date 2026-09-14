@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowUp,
@@ -85,11 +85,20 @@ export function AttentionWorkspace({
   const [listening, setListening] = useState(false);
   const [conversationMode, setConversationMode] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [voiceEnergy, setVoiceEnergy] = useState(0);
+  const [voiceSpectrum, setVoiceSpectrum] = useState<number[]>([]);
   const [capturing, setCapturing] = useState(false),
     [draft, setDraft] = useState('');
   const requestId = useRef(0);
   const recognition = useRef<BrowserSpeechRecognition | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
+  const audioContext = useRef<AudioContext | null>(null);
+  const analysisFrame = useRef<number | null>(null);
+  const analysisTick = useRef(0);
+  useEffect(() => () => {
+    if (analysisFrame.current) cancelAnimationFrame(analysisFrame.current);
+    audioContext.current?.close().catch(() => undefined);
+  }, []);
   const sources = data?.sources || [];
   const attention = workingAttention(
     seed,
@@ -239,6 +248,7 @@ export function AttentionWorkspace({
       setConversationMode(false);
       recognition.current?.stop();
       audio.current?.pause();
+      stopVoiceAnalysis();
       setSpeaking(false);
       return;
     }
@@ -258,13 +268,57 @@ export function AttentionWorkspace({
       audio.current = player;
       player.onended = () => {
         URL.revokeObjectURL(src);
+        stopVoiceAnalysis();
         setSpeaking(false);
         if (conversationMode) beginListening(true);
       };
       await player.play();
+      beginVoiceAnalysis(player);
     } catch (e) {
       setSpeaking(false);
       throw e;
+    }
+  }
+  function stopVoiceAnalysis() {
+    if (analysisFrame.current) cancelAnimationFrame(analysisFrame.current);
+    analysisFrame.current = null;
+    setVoiceEnergy(0);
+    setVoiceSpectrum([]);
+  }
+  function beginVoiceAnalysis(player: HTMLAudioElement) {
+    stopVoiceAnalysis();
+    try {
+      const context = audioContext.current || new AudioContext();
+      audioContext.current = context;
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.72;
+      const source = context.createMediaElementSource(player);
+      source.connect(analyser);
+      analyser.connect(context.destination);
+      void context.resume();
+      const bins = new Uint8Array(analyser.frequencyBinCount);
+      const read = (now: number) => {
+        analyser.getByteFrequencyData(bins);
+        const spectrum = Array.from({ length: 28 }, (_, index) => {
+          const start = Math.floor((index / 28) * bins.length);
+          const end = Math.max(start + 1, Math.floor(((index + 1) / 28) * bins.length));
+          let sum = 0;
+          for (let bin = start; bin < end; bin++) sum += bins[bin];
+          return sum / Math.max(1, end - start) / 255;
+        });
+        const energy = spectrum.reduce((sum, value) => sum + value, 0) / spectrum.length;
+        if (now - analysisTick.current > 66) {
+          analysisTick.current = now;
+          setVoiceEnergy(energy);
+          setVoiceSpectrum(spectrum);
+        }
+        if (!player.paused && !player.ended)
+          analysisFrame.current = requestAnimationFrame(read);
+      };
+      analysisFrame.current = requestAnimationFrame(read);
+    } catch {
+      // The voice itself remains available if a browser disallows audio analysis.
     }
   }
   async function speakAnswer() {
@@ -328,6 +382,8 @@ export function AttentionWorkspace({
           activatedIds={[]}
           focusId={selectedId}
           signal={signal}
+          voiceEnergy={voiceEnergy}
+          voiceSpectrum={voiceSpectrum}
         />
         <div className="attention-input">
           <form
