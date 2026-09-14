@@ -498,7 +498,7 @@ export function mountSupernova(
     uniforms: fieldUniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     vertexShader: `uniform float uTime; uniform float uPixelRatio; attribute vec3 aEnd; attribute vec3 color; attribute float aSeed;
       varying vec3 vColor; varying float vAlpha;
-      void main(){ float velocity=.25+fract(aSeed*17.)*.42; float wave=fract(aSeed+uTime*velocity); vec3 p=mix(position,aEnd,wave);
+      void main(){ float velocity=.045+fract(aSeed*17.)*.055; float wave=fract(aSeed+uTime*velocity); vec3 p=mix(position,aEnd,wave);
         float breath=.65+.35*sin(uTime*1.3+aSeed*40.); vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv;
         gl_PointSize=clamp(uPixelRatio*(9.+fract(aSeed*91.)*20.)/max(1.,-mv.z),1.,8.); vColor=color*(.75+breath); vAlpha=.18+breath*.62; }`,
     fragmentShader: `uniform float uStrength; varying vec3 vColor; varying float vAlpha;
@@ -711,16 +711,16 @@ export function mountSupernova(
     cortex.visible = controls.attentionMode === true;
     signalField.visible = true;
     fieldUniforms.uStrength.value = controls.attentionMode ? 1 : 0.24;
-    signalField.rotation.z = Math.sin(t * 0.12) * 0.11;
-    signalField.rotation.y = t * 0.052;
-    signalField.rotation.x = Math.sin(t * 0.081) * 0.1;
-    const litWhip = Math.floor(t * 0.58) % paths.length;
+    signalField.rotation.z = Math.sin(t * 0.045) * 0.075;
+    signalField.rotation.y = t * 0.016;
+    signalField.rotation.x = Math.sin(t * 0.031) * 0.065;
+    const litWhip = Math.floor(t * 0.085) % paths.length;
     streamTrails.material.opacity = controls.attentionMode ? 0.038 + (Math.sin(t * 1.1) + 1) * 0.018 + voiceEnergy * 0.06 : 0.022;
     for (let index = 0; index < travelerCount; index++) {
       const pathIndex = index % paths.length;
       const path = paths[pathIndex];
       const direction = path.outward ? 1 : -1;
-      const u = (path.outward ? 0 : 1) + direction * ((t * (0.105 + (index % 5) * 0.019) + index * 0.137) % 1);
+      const u = (path.outward ? 0 : 1) + direction * ((t * (0.028 + (index % 5) * 0.007) + index * 0.137) % 1);
       const point = path.curve.getPointAt((u + 1) % 1);
       travelerPositions.set(point.toArray(), index * 3);
       const turn = pathIndex === litWhip ? 2.8 + voiceEnergy * 1.4 : 0.34;
@@ -730,9 +730,9 @@ export function mountSupernova(
     travelerGeometry.attributes.color.needsUpdate = true;
     filaments.visible = true;
     filamentMaterial.opacity = controls.attentionMode ? 0.17 + voiceEnergy * 0.12 : 1;
-    filaments.rotation.y = t * 0.024;
-    filaments.rotation.x = Math.sin(t * 0.09) * 0.11;
-    filaments.rotation.z = Math.cos(t * 0.07) * 0.05;
+    filaments.rotation.y = t * 0.006;
+    filaments.rotation.x = Math.sin(t * 0.035) * 0.06;
+    filaments.rotation.z = Math.cos(t * 0.027) * 0.035;
     plasmaCorona.visible = controls.attentionMode === true;
     plasmaCorona.scale.setScalar(0.72 + Math.sin(t * 1.68) * 0.06 + Math.sin(t * 0.43) * 0.03 + voiceEnergy * 0.14);
     plasmaCorona.children.forEach((loop) => {
