@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { cosineSimilarity } from '../app/research/chunks.mjs';
 
 const model = process.env.CONTINUUM_MODEL || 'alibaba/qwen-3-14b';
 const gateway = 'https://ai-gateway.vercel.sh/v1/chat/completions';
+const embeddingGateway = 'https://ai-gateway.vercel.sh/v1/embeddings';
+const embeddingModel = process.env.CONTINUUM_EMBEDDING_MODEL || 'alibaba/qwen3-embedding-0.6b';
 
 function compact(text, size = 2200) {
   return String(text || '').replace(/\s+/g, ' ').trim().slice(0, size);
@@ -34,6 +37,23 @@ function extractiveAnswer(question, citations, reason) {
   };
 }
 
+async function embedQuestion(question, token) {
+  if (!token) return null;
+  try {
+    const response = await fetch(embeddingGateway, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: embeddingModel, input: question }),
+    });
+    const payload = await response.json();
+    return response.ok && Array.isArray(payload?.data?.[0]?.embedding)
+      ? payload.data[0].embedding
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(request, response) {
   response.setHeader('Cache-Control', 'no-store');
   if (request.method !== 'POST') return response.status(405).json({ error: 'Use POST.' });
@@ -52,12 +72,46 @@ export default async function handler(request, response) {
   if (verifyError || !verified.user) return response.status(401).json({ error: 'Your session could not be verified.' });
   const { data: brain } = await db.from('continuum_brains').select('id,name,direction').eq('id', brainId).eq('owner_id', verified.user.id).maybeSingle();
   if (!brain) return response.status(404).json({ error: 'That brain is not in your private workspace.' });
-  const words = question.match(/[a-zA-Z][a-zA-Z0-9'-]{2,}/g) || [];
-  let query = db.from('continuum_sources').select('id,title,body').eq('brain_id', brainId).eq('owner_id', verified.user.id).limit(8);
-  if (words.length) query = query.or(words.slice(0, 6).map((word) => `body.ilike.%${word}%,title.ilike.%${word}%`).join(','));
-  let { data: sources } = await query;
-  if (!sources?.length) ({ data: sources } = await db.from('continuum_sources').select('id,title,body').eq('brain_id', brainId).eq('owner_id', verified.user.id).limit(6));
-  const citations = (sources || []).map((source) => ({ source_id: source.id, title: source.title, excerpt: compact(source.body, 700) }));
+  const queryVector = await embedQuestion(question, gatewayToken);
+  let citations = [];
+  if (queryVector) {
+    const { data: passages } = await db
+      .from('continuum_passages')
+      .select('source_id,body,char_start,char_end,embedding')
+      .eq('brain_id', brainId)
+      .eq('owner_id', verified.user.id)
+      .not('embedding', 'is', null)
+      .limit(240);
+    const ranked = (passages || [])
+      .map((passage) => ({ ...passage, score: cosineSimilarity(queryVector, passage.embedding) }))
+      .filter((passage) => passage.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+    if (ranked.length) {
+      const ids = [...new Set(ranked.map((passage) => passage.source_id))];
+      const { data: sourceRows } = await db
+        .from('continuum_sources')
+        .select('id,title')
+        .eq('brain_id', brainId)
+        .eq('owner_id', verified.user.id)
+        .in('id', ids);
+      const titles = new Map((sourceRows || []).map((source) => [source.id, source.title]));
+      citations = ranked.map((passage) => ({
+        source_id: passage.source_id,
+        title: titles.get(passage.source_id) || 'Saved source',
+        excerpt: compact(passage.body, 700),
+        passage: { start: passage.char_start, end: passage.char_end, score: Math.round(passage.score * 1000) / 1000 },
+      }));
+    }
+  }
+  if (!citations.length) {
+    const words = question.match(/[a-zA-Z][a-zA-Z0-9'-]{2,}/g) || [];
+    let query = db.from('continuum_sources').select('id,title,body').eq('brain_id', brainId).eq('owner_id', verified.user.id).limit(8);
+    if (words.length) query = query.or(words.slice(0, 6).map((word) => `body.ilike.%${word}%,title.ilike.%${word}%`).join(','));
+    let { data: sources } = await query;
+    if (!sources?.length) ({ data: sources } = await db.from('continuum_sources').select('id,title,body').eq('brain_id', brainId).eq('owner_id', verified.user.id).limit(6));
+    citations = (sources || []).map((source) => ({ source_id: source.id, title: source.title, excerpt: compact(source.body, 700) }));
+  }
   if (!citations.length) return response.status(200).json({ answer: 'I do not have any saved sources in this brain yet. Add a note, conversation, or document, then ask again.', citations, mode: 'extractive' });
   if (!gatewayToken)
     return response.status(200).json(extractiveAnswer(question, citations, 'the synthesis model is not configured'));

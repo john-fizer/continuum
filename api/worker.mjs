@@ -1,7 +1,50 @@
 import { createClient } from '@supabase/supabase-js';
 import { analyzeSource, conceptCandidates } from '../app/research/worker.mjs';
+import { chunkSource } from '../app/research/chunks.mjs';
 
 const note = 'Shared terminology is measured evidence of textual overlap, not proof of a causal or conceptual relationship. Check the original passages and alternative explanations.';
+const embeddingGateway = 'https://ai-gateway.vercel.sh/v1/embeddings';
+const embeddingModel = process.env.CONTINUUM_EMBEDDING_MODEL || 'alibaba/qwen3-embedding-0.6b';
+
+async function embed(texts) {
+  const token = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  if (!token) return [];
+  const response = await fetch(embeddingGateway, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: embeddingModel, input: texts }),
+  });
+  if (!response.ok) throw new Error(`Embedding service returned ${response.status}.`);
+  const payload = await response.json();
+  return Array.isArray(payload?.data)
+    ? payload.data.sort((a, b) => a.index - b.index).map((item) => item.embedding)
+    : [];
+}
+
+async function indexPassages(db, job, source) {
+  const passages = chunkSource(source);
+  if (!passages.length) return { count: 0, embedded: 0 };
+  const { error: clearError } = await db
+    .from('continuum_passages')
+    .delete()
+    .eq('brain_id', job.brain_id)
+    .eq('source_id', source.id);
+  if (clearError) throw clearError;
+  const vectors = await embed(passages.map((passage) => passage.body));
+  const now = Date.now() / 1000;
+  const rows = passages.map((passage, index) => ({
+    ...passage,
+    brain_id: job.brain_id,
+    owner_id: job.owner_id,
+    token_estimate: Math.ceil(passage.body.length / 4),
+    embedding: Array.isArray(vectors[index]) ? vectors[index] : null,
+    embedding_model: Array.isArray(vectors[index]) ? embeddingModel : null,
+    updated: now,
+  }));
+  const { error } = await db.from('continuum_passages').insert(rows);
+  if (error) throw error;
+  return { count: rows.length, embedded: vectors.length };
+}
 
 async function indexSemanticMemory(db, job, source) {
   const candidates = conceptCandidates(source, 12);
@@ -115,6 +158,14 @@ export default async function handler(request, response) {
         db.from('continuum_sources').select('id,title,body').eq('brain_id', job.brain_id),
       ]);
       if (!source) throw new Error('Source was removed before analysis.');
+      if (job.kind === 'embedding') {
+        const indexed = await indexPassages(db, job, source);
+        const result = `Created ${indexed.count} cited passage${indexed.count === 1 ? '' : 's'} and embedded ${indexed.embedded} for semantic retrieval.`;
+        const { error: finishError } = await db.from('continuum_jobs').update({ status: 'completed', result, finished: Date.now() / 1000 }).eq('id', job.id);
+        if (finishError) throw finishError;
+        completed++;
+        continue;
+      }
       const analysis = analyzeSource(source, sources || []);
       for (const link of analysis.links) {
         const a = (sources || []).find((s) => s.id === link.source_a);
