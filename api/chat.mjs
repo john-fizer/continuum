@@ -116,12 +116,17 @@ export default async function handler(request, response) {
   if (!gatewayToken)
     return response.status(200).json(extractiveAnswer(question, citations, 'the synthesis model is not configured'));
   const prompt = `You are Continuum, a research-minded second brain. Answer only from the supplied private source excerpts. Separate observations from hypotheses. Name uncertainty and alternative explanations. Never claim that a connection proves causation. Cite source titles in square brackets when you use them.\n\nBrain direction: ${brain.direction || 'not set'}\nQuestion: ${question}\n\nSources:\n${citations.map((s, i) => `[${i + 1}] ${s.title}\n${s.excerpt}`).join('\n\n')}`;
-  const generated = await fetch(gateway, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${gatewayToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.35, max_tokens: 900, chat_template_kwargs: { enable_thinking: false } }),
-  });
-  const payload = await generated.json();
+  let generated;
+  let payload;
+  for (const candidate of [model, 'zai/glm-4.7-flash']) {
+    generated = await fetch(gateway, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${gatewayToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: candidate, messages: [{ role: 'user', content: prompt }], temperature: 0.35, max_tokens: 900, chat_template_kwargs: { enable_thinking: false } }),
+    });
+    payload = await generated.json();
+    if (generated.ok || generated.status !== 429 || candidate === 'zai/glm-4.7-flash') break;
+  }
   if (!generated.ok) {
     console.warn('Continuum synthesis fallback', generated.status, String(payload?.error?.message || payload?.error || 'unknown gateway error').slice(0, 240));
     return response.status(200).json(
