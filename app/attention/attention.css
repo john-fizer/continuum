@@ -127,6 +127,16 @@
   background: #4c2f1c;
   animation: attention-listening 1.2s ease-in-out infinite;
 }
+.attention-input form .attention-conversation {
+  background: #102834;
+  margin-right: 6px;
+}
+.attention-input form .attention-conversation.active {
+  color: #fff0cd;
+  border-color: #f1b968;
+  background: #52331d;
+  box-shadow: 0 0 18px #ecad6255;
+}
 @keyframes attention-listening {
   50% { box-shadow: 0 0 0 7px #d99b5240, 0 0 22px #e7b86266; }
 }

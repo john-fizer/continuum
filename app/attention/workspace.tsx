@@ -8,6 +8,7 @@ import {
   Mic,
   Plus,
   Volume2,
+  Waves,
   Upload,
   X,
 } from 'lucide-react';
@@ -65,6 +66,8 @@ export function AttentionWorkspace({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
   const [listening, setListening] = useState(false);
+  const [conversationMode, setConversationMode] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [capturing, setCapturing] = useState(false),
     [draft, setDraft] = useState('');
   const requestId = useRef(0);
@@ -115,7 +118,7 @@ export function AttentionWorkspace({
         sourceIds: [id],
       });
   }
-  async function ask() {
+  async function ask(readAloud = false) {
     const text = query.trim();
     if (!text || busy) return;
     const version = ++requestId.current;
@@ -132,6 +135,7 @@ export function AttentionWorkspace({
         type: 'memory.retrieve',
         sourceIds: answer.citations.map((c) => c.source_id),
       });
+      if (readAloud) await playAnswer(answer.answer);
     } catch (e) {
       if (requestId.current === version)
         setError(e instanceof Error ? e.message : 'Retrieval failed.');
@@ -139,7 +143,8 @@ export function AttentionWorkspace({
       if (requestId.current === version) setBusy(false);
     }
   }
-  function toggleVoiceInput() {
+  function beginListening(conversation = false) {
+    if (busy || speaking) return;
     if (listening) {
       recognition.current?.stop();
       return;
@@ -156,7 +161,7 @@ export function AttentionWorkspace({
     }
     const voice = new SpeechRecognition();
     recognition.current = voice;
-    voice.continuous = false;
+    voice.continuous = conversation;
     voice.interimResults = false;
     voice.lang = navigator.language || 'en-US';
     voice.onresult = (event) => {
@@ -165,6 +170,10 @@ export function AttentionWorkspace({
         .join(' ')
         .trim();
       if (transcript) setQuery(transcript);
+      if (transcript && conversation) {
+        voice.stop();
+        void askTranscript(transcript);
+      }
     };
     voice.onerror = (event) => {
       if (event.error !== 'aborted') setError(`Voice input: ${event.error}.`);
@@ -174,22 +183,74 @@ export function AttentionWorkspace({
     setListening(true);
     voice.start();
   }
-  async function speakAnswer() {
-    if (!result?.answer) return;
+  function toggleVoiceInput() {
+    beginListening(false);
+  }
+  async function askTranscript(transcript: string) {
+    const text = transcript.trim();
+    if (!text || busy) return;
+    setQuery(text);
+    await askWithText(text, true);
+  }
+  async function askWithText(text: string, readAloud = false) {
+    if (!text || busy) return;
+    const version = ++requestId.current;
     setBusy(true);
     setError('');
+    setPath([]);
+    try {
+      const answer = await onAsk(text);
+      if (requestId.current !== version) return;
+      setSeed(text);
+      setResult(answer);
+      setSignal({ id: crypto.randomUUID(), type: 'memory.retrieve', sourceIds: answer.citations.map((c) => c.source_id) });
+      if (readAloud) await playAnswer(answer.answer);
+    } catch (e) {
+      if (requestId.current === version) setError(e instanceof Error ? e.message : 'Retrieval failed.');
+    } finally {
+      if (requestId.current === version) setBusy(false);
+    }
+  }
+  function toggleConversationMode() {
+    if (conversationMode) {
+      setConversationMode(false);
+      recognition.current?.stop();
+      audio.current?.pause();
+      setSpeaking(false);
+      return;
+    }
+    setConversationMode(true);
+    setError('');
+    beginListening(true);
+  }
+  async function playAnswer(text: string) {
+    if (!text) return;
+    setSpeaking(true);
     try {
       audio.current?.pause();
-      const voice = await onSpeak(result.answer);
+      const voice = await onSpeak(text);
       const bytes = Uint8Array.from(atob(voice.audio), (char) => char.charCodeAt(0));
       const src = URL.createObjectURL(new Blob([bytes], { type: voice.format }));
-      audio.current = new Audio(src);
-      audio.current.onended = () => URL.revokeObjectURL(src);
-      await audio.current.play();
+      const player = new Audio(src);
+      audio.current = player;
+      player.onended = () => {
+        URL.revokeObjectURL(src);
+        setSpeaking(false);
+        if (conversationMode) beginListening(true);
+      };
+      await player.play();
+    } catch (e) {
+      setSpeaking(false);
+      throw e;
+    }
+  }
+  async function speakAnswer() {
+    if (!result?.answer) return;
+    setError('');
+    try {
+      await playAnswer(result.answer);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Neural voice could not respond.');
-    } finally {
-      setBusy(false);
     }
   }
   async function capture() {
@@ -270,6 +331,15 @@ export function AttentionWorkspace({
               title={listening ? 'Stop listening' : 'Ask with your voice'}
             >
               <Mic size={18} />
+            </button>
+            <button
+              type="button"
+              className={`attention-conversation ${conversationMode ? 'active' : ''}`}
+              onClick={toggleConversationMode}
+              aria-label={conversationMode ? 'End conversation mode' : 'Start conversation mode'}
+              title={conversationMode ? 'End conversation mode' : 'Conversation mode'}
+            >
+              <Waves size={17} />
             </button>
             <button
               type="submit"
