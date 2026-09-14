@@ -505,6 +505,21 @@ export function mountSupernova(
       void main(){ float r=length(gl_PointCoord-.5)*2.; if(r>1.) discard; float a=exp(-r*r*4.5)*(1.-smoothstep(.5,1.,r)); gl_FragColor=vec4(vColor,a*vAlpha*uStrength); }`,
   }));
   signalField.add(streamParticles);
+  const travelerGeometry = new THREE.BufferGeometry();
+  const travelerCount = compact ? 56 : 126;
+  const travelerPositions = new Float32Array(travelerCount * 3);
+  const travelerColors = new Float32Array(travelerCount * 3);
+  travelerGeometry.setAttribute('position', new THREE.BufferAttribute(travelerPositions, 3));
+  travelerGeometry.setAttribute('color', new THREE.BufferAttribute(travelerColors, 3));
+  const travelers = new THREE.Points(travelerGeometry, new THREE.PointsMaterial({
+    size: 0.045,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }));
+  signalField.add(travelers);
   signalField.visible = true;
   universe.add(signalField);
 
@@ -696,10 +711,28 @@ export function mountSupernova(
     cortex.visible = controls.attentionMode === true;
     signalField.visible = true;
     fieldUniforms.uStrength.value = controls.attentionMode ? 1 : 0.24;
-    signalField.rotation.z = Math.sin(t * 0.12) * 0.06;
-    signalField.rotation.y = t * 0.035;
-    streamTrails.material.opacity = controls.attentionMode ? 0.065 + Math.sin(t * 1.1) * 0.018 : 0.022;
-    filaments.visible = !controls.attentionMode;
+    signalField.rotation.z = Math.sin(t * 0.12) * 0.11;
+    signalField.rotation.y = t * 0.052;
+    signalField.rotation.x = Math.sin(t * 0.081) * 0.1;
+    const litWhip = Math.floor(t * 0.58) % paths.length;
+    streamTrails.material.opacity = controls.attentionMode ? 0.038 + (Math.sin(t * 1.1) + 1) * 0.018 + voiceEnergy * 0.06 : 0.022;
+    for (let index = 0; index < travelerCount; index++) {
+      const pathIndex = index % paths.length;
+      const path = paths[pathIndex];
+      const direction = path.outward ? 1 : -1;
+      const u = (path.outward ? 0 : 1) + direction * ((t * (0.105 + (index % 5) * 0.019) + index * 0.137) % 1);
+      const point = path.curve.getPointAt((u + 1) % 1);
+      travelerPositions.set(point.toArray(), index * 3);
+      const turn = pathIndex === litWhip ? 2.8 + voiceEnergy * 1.4 : 0.34;
+      travelerColors.set(path.color.clone().multiplyScalar(turn).toArray(), index * 3);
+    }
+    travelerGeometry.attributes.position.needsUpdate = true;
+    travelerGeometry.attributes.color.needsUpdate = true;
+    filaments.visible = true;
+    filamentMaterial.opacity = controls.attentionMode ? 0.17 + voiceEnergy * 0.12 : 1;
+    filaments.rotation.y = t * 0.024;
+    filaments.rotation.x = Math.sin(t * 0.09) * 0.11;
+    filaments.rotation.z = Math.cos(t * 0.07) * 0.05;
     plasmaCorona.visible = controls.attentionMode === true;
     plasmaCorona.scale.setScalar(0.72 + Math.sin(t * 1.68) * 0.06 + Math.sin(t * 0.43) * 0.03 + voiceEnergy * 0.14);
     plasmaCorona.children.forEach((loop) => {
