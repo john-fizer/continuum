@@ -367,8 +367,8 @@ export function mountSupernova(
   );
   scene.add(dust);
 
-  // The attention view is a volumetric neural atlas. It is deliberately an
-  // organism-like field rather than a conventional graph diagram.
+  // Kept available for a future microscopic mode, but deliberately hidden in
+  // the living field: the rigid mesh reads as a static neural-network diagram.
   const cortex = new THREE.Group();
   const cortexCount = compact ? 260 : 540;
   const cortexPoints: THREE.Vector3[] = [];
@@ -432,7 +432,7 @@ export function mountSupernova(
       blending: THREE.AdditiveBlending,
     }),
   ));
-  cortex.visible = initial.attentionMode === true;
+  cortex.visible = false;
   universe.add(cortex);
 
   // Attention is rendered as a travelling field: cool paths retrieve evidence
@@ -448,6 +448,7 @@ export function mountSupernova(
     const angle = (arm / 14) * Math.PI * 2 + rand() * 0.18;
     const warm = arm % 4 === 0;
     const color = new THREE.Color(warm ? '#ff9e55' : '#46dcff');
+    const coreColor = new THREE.Color('#ffd7a1');
     const edge = new THREE.Vector3(
       Math.cos(angle) * (3.7 + rand() * 1.5),
       Math.sin(angle) * (2.0 + rand() * 1.05),
@@ -468,7 +469,9 @@ export function mountSupernova(
     const points = curve.getPoints(54);
     for (let p = 1; p < points.length; p++) {
       trailPositions.push(...points[p - 1].toArray(), ...points[p].toArray());
-      trailColors.push(...color.clone().multiplyScalar(warm ? 0.42 : 0.34).toArray(), ...color.clone().multiplyScalar(warm ? 0.42 : 0.34).toArray());
+      const lastColor = color.clone().lerp(coreColor, ((p - 1) / points.length) * .9).multiplyScalar(warm ? .42 : .34);
+      const nextColor = color.clone().lerp(coreColor, (p / points.length) * .9).multiplyScalar(warm ? .42 : .34);
+      trailColors.push(...lastColor.toArray(), ...nextColor.toArray());
     }
   }
   const trailGeometry = new THREE.BufferGeometry();
@@ -700,6 +703,29 @@ export function mountSupernova(
   const traffic = new THREE.Points(trafficGeometry, trafficMaterial);
   traffic.frustumCulled = false;
   universe.add(traffic);
+  const voiceArcs = new THREE.Group();
+  const voiceArcLines: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>[] = [];
+  for (let arcIndex = 0; arcIndex < 9; arcIndex++) {
+    const path = paths[arcIndex % paths.length];
+    const outer = path.curve.getPointAt(.92);
+    const bend = path.curve.getPointAt(.48).multiplyScalar(.72).add(new THREE.Vector3(0, 0, .2));
+    const arc = new THREE.QuadraticBezierCurve3(new THREE.Vector3(), bend, outer);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(arc.getPoints(30)),
+      new THREE.LineBasicMaterial({
+        color: arcIndex % 3 ? '#8ceeff' : '#ffd08a',
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    line.userData = { phase: rand() * Math.PI * 2 };
+    voiceArcs.add(line);
+    voiceArcLines.push(line);
+  }
+  voiceArcs.visible = false;
+  universe.add(voiceArcs);
   const projected = new THREE.Vector3();
   function draw() {
     if (disposed || lost) return;
@@ -708,7 +734,7 @@ export function mountSupernova(
     const voiceEnergy = Math.min(1, Math.max(0, controls.voiceEnergy || 0));
     uniforms.uVoice.value += (voiceEnergy - uniforms.uVoice.value) * 0.22;
     decorativeElectrons.visible = true;
-    cortex.visible = controls.attentionMode === true;
+    cortex.visible = false;
     signalField.visible = true;
     fieldUniforms.uStrength.value = controls.attentionMode ? 1 : 0.24;
     signalField.rotation.z = Math.sin(t * 0.045) * 0.075;
@@ -733,6 +759,12 @@ export function mountSupernova(
     filaments.rotation.y = t * 0.006;
     filaments.rotation.x = Math.sin(t * 0.035) * 0.06;
     filaments.rotation.z = Math.cos(t * 0.027) * 0.035;
+    voiceArcs.visible = controls.attentionMode === true && voiceEnergy > .035;
+    voiceArcLines.forEach((line, index) => {
+      const pulse = Math.max(0, Math.sin(t * 4.6 + line.userData.phase));
+      const selected = (Math.floor(t * 1.3) + index) % 4 === 0;
+      line.material.opacity = selected ? voiceEnergy * pulse * .68 : 0;
+    });
     plasmaCorona.visible = controls.attentionMode === true;
     plasmaCorona.scale.setScalar(0.72 + Math.sin(t * 1.68) * 0.06 + Math.sin(t * 0.43) * 0.03 + voiceEnergy * 0.14);
     plasmaCorona.children.forEach((loop) => {
@@ -752,9 +784,6 @@ export function mountSupernova(
       bar.material.opacity = Math.min(0.5, voiceEnergy * 0.38 + level * 0.22);
       bar.position.z = 0.14 + Math.sin(t * 3.2 + bar.userData.phase) * voiceEnergy * 0.12;
     });
-    cortex.rotation.y = t * 0.09;
-    cortex.rotation.z = Math.sin(t * 0.13) * 0.12;
-    cortex.scale.setScalar(1 + Math.sin(t * 0.6) * 0.018);
     filamentsGeometry.setDrawRange(
       controls.attentionMode ? 0 : branchVertexStart,
       controls.attentionMode ? 0 : Infinity,
