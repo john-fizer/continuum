@@ -440,9 +440,9 @@ export default function Home() {
               await refresh();
               return saved.id;
             }}
-            onAsk={(query) =>
+            onAsk={(query, history = []) =>
               cloudEnabled
-                ? askCloud(id, query)
+                ? askCloud(id, query, history)
                 : api<Answer>(`brains/${id}/ask`, { question: query })
             }
             onSpeak={(text) => {

@@ -6,7 +6,13 @@ export type CloudAnswer = {
   mode: 'synthesis';
 };
 
-export async function askCloud(brainId: string, question: string): Promise<CloudAnswer> {
+export type ConversationTurn = { role: 'user' | 'assistant'; content: string };
+
+export async function askCloud(
+  brainId: string,
+  question: string,
+  history: ConversationTurn[] = [],
+): Promise<CloudAnswer> {
   const { data, error } = await cloudClient().auth.getSession();
   if (error) throw new Error(error.message);
   if (!data.session) throw new Error('Sign in to speak with your private brain.');
@@ -16,7 +22,7 @@ export async function askCloud(brainId: string, question: string): Promise<Cloud
       'Content-Type': 'application/json',
       Authorization: `Bearer ${data.session.access_token}`,
     },
-    body: JSON.stringify({ brainId, question }),
+    body: JSON.stringify({ brainId, question, history: history.slice(-8) }),
   });
   const result = (await response.json()) as CloudAnswer & { error?: string };
   if (!response.ok)

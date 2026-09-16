@@ -54,6 +54,7 @@ type Answer = {
   citations: { source_id: string; title: string; excerpt: string }[];
   mode?: 'synthesis' | 'extractive';
 };
+type ConversationTurn = { role: 'user' | 'assistant'; content: string };
 export function AttentionWorkspace({
   data,
   onAsk,
@@ -69,7 +70,7 @@ export function AttentionWorkspace({
     relationships?: StoredRelationship[];
     state: string;
   } | null;
-  onAsk: (query: string) => Promise<Answer>;
+  onAsk: (query: string, history?: ConversationTurn[]) => Promise<Answer>;
   onCapture: (title: string, body: string) => Promise<string>;
   onImport: () => void;
   onCreate: () => void;
@@ -84,6 +85,7 @@ export function AttentionWorkspace({
     [error, setError] = useState('');
   const [listening, setListening] = useState(false);
   const [conversationMode, setConversationMode] = useState(false);
+  const [conversation, setConversation] = useState<ConversationTurn[]>([]);
   const [speaking, setSpeaking] = useState(false);
   const [voiceEnergy, setVoiceEnergy] = useState(0);
   const [voiceSpectrum, setVoiceSpectrum] = useState<number[]>([]);
@@ -158,10 +160,11 @@ export function AttentionWorkspace({
     setError('');
     setPath([]);
     try {
-      const answer = await onAsk(text);
+      const answer = await onAsk(text, conversation);
       if (requestId.current !== version) return;
       setSeed(text);
       setResult(answer);
+      setConversation((turns) => [...turns, { role: 'user' as const, content: text }, { role: 'assistant' as const, content: answer.answer }].slice(-10));
       setSignal({
         id: crypto.randomUUID(),
         type: 'memory.retrieve',
@@ -231,10 +234,11 @@ export function AttentionWorkspace({
     setError('');
     setPath([]);
     try {
-      const answer = await onAsk(text);
+      const answer = await onAsk(text, conversation);
       if (requestId.current !== version) return;
       setSeed(text);
       setResult(answer);
+      setConversation((turns) => [...turns, { role: 'user' as const, content: text }, { role: 'assistant' as const, content: answer.answer }].slice(-10));
       setSignal({ id: crypto.randomUUID(), type: 'memory.retrieve', sourceIds: answer.citations.map((c) => c.source_id) });
       if (readAloud) await playAnswer(answer.answer);
     } catch (e) {
@@ -399,7 +403,7 @@ export function AttentionWorkspace({
               id="attention-query"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Bring an idea into focus…"
+              placeholder={conversationMode ? 'Talk through a connection or direct the research…' : 'Bring an idea into focus…'}
               maxLength={2000}
             />
             <button
@@ -431,7 +435,9 @@ export function AttentionWorkspace({
           <div className="attention-input-meta">
             <span>
               {data
-                ? 'Ask your private brain · evidence-backed answers'
+                ? conversationMode
+                  ? `Conversation active · ${conversation.length / 2} ${conversation.length === 2 ? 'turn' : 'turns'} held in attention`
+                  : 'Ask your private brain · evidence-backed answers'
                 : 'Your ideas begin here'}
             </span>
             <div>
