@@ -435,6 +435,124 @@
     right: 8px;
   }
 }
+
+/* The attention field is the primary surface on a phone. Keep its controls
+   inside thumb reach and let focused evidence become a dismissible sheet
+   instead of squeezing the graph into a second desktop column. */
+@media (max-width: 700px) {
+  .attention-workspace {
+    border-radius: 10px;
+    min-height: 0;
+  }
+  .attention-field {
+    height: clamp(430px, 66svh, 620px);
+    min-height: 430px;
+  }
+  .attention-field .graph-tools {
+    top: 48px;
+    left: 10px;
+  }
+  .attention-state {
+    top: 12px;
+    left: 12px;
+    max-width: calc(100% - 120px);
+    line-height: 1.35;
+  }
+  .attention-input {
+    bottom: max(14px, env(safe-area-inset-bottom));
+    width: calc(100% - 20px);
+  }
+  .attention-input form {
+    min-height: 54px;
+    padding: 5px 6px 5px 16px;
+  }
+  .attention-input input {
+    font-size: 16px;
+    padding: 9px 0;
+  }
+  .attention-input form button {
+    width: 44px;
+    height: 44px;
+  }
+  .attention-input form .attention-mic,
+  .attention-input form .attention-conversation {
+    margin-right: 4px;
+  }
+  .attention-input-meta {
+    margin: 7px 4px 0;
+  }
+  .attention-input-meta > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .attention-input-meta button {
+    min-height: 32px;
+    padding: 5px 2px;
+  }
+  .attention-error {
+    bottom: 118px;
+    left: 12px;
+    right: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .attention-field {
+    height: clamp(400px, 62svh, 540px);
+    min-height: 400px;
+  }
+  .attention-field .nova-options {
+    top: 9px;
+    right: 9px;
+  }
+  .attention-field .nova-quality {
+    display: none;
+  }
+  .attention-field .graph-tools {
+    opacity: 0.8;
+  }
+  .attention-input-meta > span {
+    display: none;
+  }
+  .attention-input-meta {
+    justify-content: flex-end;
+    margin-top: 5px;
+  }
+  .attention-input-meta > div {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .attention-evidence {
+    position: fixed;
+    z-index: 30;
+    inset: auto 0 0;
+    max-height: min(62dvh, 540px);
+    overflow: auto;
+    padding: 18px 18px calc(20px + env(safe-area-inset-bottom));
+    border: 1px solid #315260;
+    border-bottom: 0;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -18px 50px #000b, 0 -1px 0 #8fcbe422;
+    background: linear-gradient(150deg, #0b1d2aeF, #050c12f5);
+    backdrop-filter: blur(22px);
+  }
+  .attention-evidence-nav {
+    position: sticky;
+    top: -18px;
+    z-index: 1;
+    margin: -18px -18px 18px;
+    padding: 14px 18px 10px;
+    background: linear-gradient(#0b1d2afc, #0b1d2ae8);
+  }
+  .attention-evidence h2 {
+    font-size: 19px;
+  }
+  .attention-capture textarea {
+    min-height: 180px;
+    font-size: 16px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .attention-memory-card,
   .attention-field .living-label {
