@@ -9,7 +9,7 @@ Supported inputs:
 - PDFs with selectable text: one source per page, with page references. Large pages become parts. Scanned PDFs need OCR, which is not connected. Original PDF bytes are not stored; keep the original file.
 - Continuum prepared import JSON: download selected sources from the preview and reopen them later.
 
-Limits: 20 MB per file, 30 files per selection, 500 staged sources, 300 pages per PDF. Individual text parts are at most 60,000 characters.
+Limits: 20 MB per file, 30 files per selection, 1,500 staged sources, 1,200 pages per PDF. Individual text parts are at most 60,000 characters.
 
 Staging is browser memory only. Leaving this view or refreshing clears unsaved items. Download a prepared import to retain them. Files are parsed in the browser; saving sends selected extracted text and metadata to the local service. A partially interrupted save can be retried without duplicating sources.
 

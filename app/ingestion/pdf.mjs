@@ -6,8 +6,8 @@ export async function readPdf(pdfjs, data, file, progress) {
   });
   try {
     const pdf = await task.promise;
-    if (pdf.numPages > 300)
-      throw new Error('PDFs are limited to 300 pages per import.');
+    if (pdf.numPages > 1200)
+      throw new Error('PDFs are limited to 1,200 pages per import. Split larger documents into volumes.');
     const docs = [];
     let blank = 0;
     for (let number = 1; number <= pdf.numPages; number++) {

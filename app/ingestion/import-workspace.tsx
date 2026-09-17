@@ -116,9 +116,9 @@ export function ImportWorkspace({
         try {
           const batch = await readFile(file, setProgress);
           if (!batch.length) throw new Error('The file contains no text.');
-          if (rows.length + documents.length + batch.length > 500)
+          if (rows.length + documents.length + batch.length > 1500)
             throw new Error(
-              'This selection exceeds 500 items. Import a smaller batch.',
+              'This selection exceeds 1,500 items. Import a smaller batch.',
             );
           documents.push(...batch);
         } catch (e) {
@@ -296,8 +296,8 @@ export function ImportWorkspace({
         <p className="fine">
           Files are parsed on this device. Preview text stays in this tab until
           you save or download it. Leaving this view or refreshing clears
-          unsaved previews. Up to 20 MB per file, 30 files and 500 items per
-          batch. Unzip ChatGPT exports and choose conversations.json.
+          unsaved previews. Up to 20 MB per file, 30 files, 1,200 PDF pages,
+          and 1,500 items per batch. Unzip ChatGPT exports and choose conversations.json.
         </p>
         {!brains.length && (
           <p className="import-notice">

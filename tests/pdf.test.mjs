@@ -44,3 +44,21 @@ test('PDF without selectable text fails with an explicit OCR message', async () 
     /need OCR/,
   );
 });
+
+test('PDF importer accepts a 301-page text PDF while preserving page provenance', async () => {
+  const fakePdfjs = {
+    getDocument: () => ({
+      promise: Promise.resolve({
+        numPages: 301,
+        getPage: async (number) => ({
+          getTextContent: async () => ({ items: [{ str: `Page ${number}`, hasEOL: false }] }),
+          cleanup: () => {},
+        }),
+      }),
+      destroy: async () => {},
+    }),
+  };
+  const docs = await readPdf(fakePdfjs, new Uint8Array(), file, () => {});
+  assert.equal(docs.length, 301);
+  assert.equal(docs.at(-1).metadata.page, 301);
+});
