@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Laboratory, type Experiment } from './laboratory';
+import { runCloudExperiment } from './cloud/automl';
 import { KnowledgeGraph } from './knowledge-graph';
 import { Masthead, MindBeacon } from './identity';
 import { AttentionWorkspace } from './attention/workspace';
@@ -590,32 +591,21 @@ export default function Home() {
                 </div>
               </>
             )}
-            {view === 'Laboratory' &&
-              (cloudEnabled ? (
-                <div className="empty">
-                  <FlaskConical />
-                  <h3>The cloud laboratory is next.</h3>
-                  <p>
-                    Model experiments currently run in the local app. Your cloud
-                    notes are stored, but are not training a model.
-                  </p>
-                </div>
-              ) : (
-                <Laboratory
-                  key={id}
-                  experiments={data.experiments || []}
-                  busy={busy}
-                  submit={async (name, target, dataset) => {
-                    await act(async () => {
-                      await api(`brains/${id}/experiments`, {
-                        name,
-                        target,
-                        dataset,
-                      });
-                    });
-                  }}
-                />
-              ))}
+            {view === 'Laboratory' && (
+              <Laboratory
+                key={id}
+                cloud={cloudEnabled}
+                experiments={data.experiments || []}
+                busy={busy}
+                submit={async (name, target, dataset) => {
+                  await act(async () => {
+                    if (cloudEnabled) await runCloudExperiment(id, name, target, dataset);
+                    else await api(`brains/${id}/experiments`, { name, target, dataset });
+                    await refresh();
+                  });
+                }}
+              />
+            )}
           </>
         )}
         <footer>

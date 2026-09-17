@@ -27,10 +27,12 @@ export function Laboratory({
   experiments,
   submit,
   busy,
+  cloud = false,
 }: {
   experiments: Experiment[];
   submit: (name: string, target: string, dataset: string) => Promise<void>;
   busy: boolean;
+  cloud?: boolean;
 }) {
   const [name, setName] = useState(''),
     [target, setTarget] = useState(''),
@@ -41,12 +43,12 @@ export function Laboratory({
       <section className="capture-panel">
         <div className="section-heading">
           <h2>A small experiment. A measurable result.</h2>
-          <span className="tag">Local AutoML baseline</span>
+          <span className="tag">{cloud ? 'Private cloud AutoML' : 'Local AutoML baseline'}</span>
         </div>
         <p>
           Compare a constant prediction, single-feature linear models, and
           decision stumps. The final 20% of rows stay separate until the winning
-          model is chosen.
+          model is chosen. The raw dataset and its held-out report stay in this brain.
         </p>
         <form
           onSubmit={async (e) => {
@@ -111,7 +113,7 @@ export function Laboratory({
               type="submit"
               disabled={busy || !dataset || !name || !target}
             >
-              Queue experiment
+              Run experiment
             </Button>
           </div>
           {error && <p role="alert">{error}</p>}
