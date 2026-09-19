@@ -69,7 +69,9 @@ export function mountSupernova(
   const camera = new THREE.PerspectiveCamera(43, 1, 0.1, 80);
   const universe = new THREE.Group();
   scene.add(universe);
-  const compact = matchMedia('(pointer: coarse)').matches;
+  // Phone-sized windows must use the compact scene even when a device reports
+  // an unusual pointer type (common with mobile browser emulation and tablets).
+  const compact = matchMedia('(pointer: coarse), (max-width: 700px)').matches;
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
   let controls = initial,
     reduced = motion.matches,
@@ -114,7 +116,7 @@ export function mountSupernova(
   core.material.transparent = true;
   core.material.depthWrite = false;
   universe.add(core);
-  const particles = compact ? 22000 : 52000;
+  const particles = compact ? 6000 : 52000;
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(particles * 3),
     seeds = new Float32Array(particles),
@@ -329,7 +331,7 @@ export function mountSupernova(
   voiceCrown.visible = false;
   universe.add(voiceCrown);
 
-  const starCount = compact ? 1800 : 4500,
+  const starCount = compact ? 520 : 4500,
     starGeometry = new THREE.BufferGeometry();
   const starPositions = new Float32Array(starCount * 3),
     starColors = new Float32Array(starCount * 3),
@@ -377,7 +379,7 @@ export function mountSupernova(
   // Kept available for a future microscopic mode, but deliberately hidden in
   // the living field: the rigid mesh reads as a static neural-network diagram.
   const cortex = new THREE.Group();
-  const cortexCount = compact ? 260 : 540;
+  const cortexCount = compact ? 110 : 540;
   const cortexPoints: THREE.Vector3[] = [];
   const cortexColors: number[] = [];
   for (let i = 0; i < cortexCount; i++) {
@@ -449,7 +451,7 @@ export function mountSupernova(
   const fieldUniforms = { ...uniforms, uStrength: { value: initial.attentionMode ? 1 : 0.24 } };
   const streamStarts: number[] = [], streamEnds: number[] = [], streamColors: number[] = [], streamSeeds: number[] = [];
   const trailPositions: number[] = [], trailColors: number[] = [];
-  const streamCount = compact ? 1500 : 4300;
+  const streamCount = compact ? 420 : 4300;
   const paths: { curve: THREE.CatmullRomCurve3; color: THREE.Color; outward: boolean }[] = [];
   for (let arm = 0; arm < 14; arm++) {
     const angle = (arm / 14) * Math.PI * 2 + rand() * 0.18;
@@ -516,7 +518,7 @@ export function mountSupernova(
   }));
   signalField.add(streamParticles);
   const travelerGeometry = new THREE.BufferGeometry();
-  const travelerCount = compact ? 56 : 126;
+  const travelerCount = compact ? 24 : 126;
   const travelerPositions = new Float32Array(travelerCount * 3);
   const travelerColors = new Float32Array(travelerCount * 3);
   travelerGeometry.setAttribute('position', new THREE.BufferAttribute(travelerPositions, 3));
@@ -539,7 +541,7 @@ export function mountSupernova(
     electronColors: number[] = [],
     electronSeeds: number[] = [];
   const branchStart = 24 * 180 * 6;
-  for (let i = 0; i < (compact ? 600 : 1500); i++) {
+  for (let i = 0; i < (compact ? 180 : 1500); i++) {
     const segment =
       branchStart +
       Math.floor(rand() * ((filamentPositions.length - branchStart) / 6)) * 6;
@@ -643,7 +645,7 @@ export function mountSupernova(
   for (const [termIndex, n] of data.nodes.filter((node) => node.id.startsWith('term:')).entries()) {
     const anchor = nodeMeshes.get(n.id);
     if (!anchor) continue;
-    const pointCount = compact ? 32 : 76;
+    const pointCount = compact ? 24 : 76;
     const positions = new Float32Array(pointCount * 3);
     for (let point = 0; point < pointCount; point++) {
       const direction = new THREE.Vector3(rand() - .5, rand() - .5, rand() - .5).normalize();
@@ -916,7 +918,7 @@ export function mountSupernova(
     const pixelBudget = controls.cinematic
       ? 8294400
       : compact
-        ? 1100000
+        ? 600000
         : 2800000;
     pixelRatio =
       Math.min(
@@ -936,7 +938,7 @@ export function mountSupernova(
   function tick(now: number) {
     if (disposed || lost) return;
     const dt = previous ? now - previous : 16.7;
-    if (dt >= 1000 / (compact ? 30 : 60) - 1) {
+    if (dt >= 1000 / (compact ? 24 : 60) - 1) {
       time += Math.min(dt / 1000, 0.055);
       previous = now;
       draw();
