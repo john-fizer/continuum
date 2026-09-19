@@ -23,15 +23,17 @@ float superRadius(float phi, float m, float n1, float n2, float n3, float a, flo
 void main(){
   vec3 p=position;
   float low=uVoiceBands.x, mid=uVoiceBands.y, presence=uVoiceBands.z, high=uVoiceBands.w;
-  float voiceGate=smoothstep(.018,.16,uVoice);
+  // TTS output is often quiet after browser smoothing, so open the voice gate
+  // early enough for syllables to visibly move the field.
+  float voiceGate=smoothstep(.004,.075,max(uVoice,max(mid,presence)*.72));
   float phi=atan(p.y,p.x)+uTime*(.035+mid*.075);
   float m=5.+floor(presence*4.+.5);
   float formula=superRadius(phi,m,.68+low*.48,.8+mid*1.25,.8+high*1.25,1.+low*.11,1.+high*.11);
-  float lobe=clamp(formula-1.,-.24,.34);
+  float lobe=clamp(formula-1.,-.34,.48);
   // Continuous seeded drift is the transformer field: it never flashes frame-to-frame.
   float transformer=fbm(normalize(p)*2.65+vec3(uTime*.09,mid*3.2,high*2.7));
   float n=fbm(p*3.2+vec3(uTime*.42,-uTime*.34,uTime*.25));
-  float audioMorph=lobe*(.025+voiceGate*(.11+mid*.13))+(transformer-.5)*voiceGate*(.045+high*.06);
+  float audioMorph=lobe*(.035+voiceGate*(.22+mid*.28))+(transformer-.5)*voiceGate*(.075+high*.10);
   p*=1.+(n-.5)*(.52+uVoice*.32)+audioMorph+.045*sin(uTime*(1.45+uVoice*2.6));
   vPosition=p; vNormal=normalize(normalMatrix*normal);
   vec4 mv=modelViewMatrix*vec4(p,1.); vView=normalize(-mv.xyz);
