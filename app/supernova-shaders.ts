@@ -10,19 +10,35 @@ float fbm(vec3 p) { float n=0.; float a=.55; for(int i=0;i<4;i++){ n+=a*noise3(p
 `;
 
 export const coreVertex = /* glsl */ `
-uniform float uTime; uniform float uVoice;
+uniform float uTime; uniform float uVoice; uniform vec4 uVoiceBands;
 varying vec3 vPosition; varying vec3 vNormal; varying vec3 vView;
 ${noise}
+// Gielis' superformula. The bands below drive its boundary conditions so
+// the form stays organically unpredictable while remaining audio-derived.
+float superRadius(float phi, float m, float n1, float n2, float n3, float a, float b){
+  float c=pow(max(abs(cos(m*phi*.25)/a),.0001),n2);
+  float s=pow(max(abs(sin(m*phi*.25)/b),.0001),n3);
+  return pow(max(c+s,.0001),-1./n1);
+}
 void main(){
   vec3 p=position;
+  float low=uVoiceBands.x, mid=uVoiceBands.y, presence=uVoiceBands.z, high=uVoiceBands.w;
+  float voiceGate=smoothstep(.018,.16,uVoice);
+  float phi=atan(p.y,p.x)+uTime*(.035+mid*.075);
+  float m=5.+floor(presence*4.+.5);
+  float formula=superRadius(phi,m,.68+low*.48,.8+mid*1.25,.8+high*1.25,1.+low*.11,1.+high*.11);
+  float lobe=clamp(formula-1.,-.24,.34);
+  // Continuous seeded drift is the transformer field: it never flashes frame-to-frame.
+  float transformer=fbm(normalize(p)*2.65+vec3(uTime*.09,mid*3.2,high*2.7));
   float n=fbm(p*3.2+vec3(uTime*.42,-uTime*.34,uTime*.25));
-  p*=1.+(n-.5)*(.52+uVoice*.32)+.045*sin(uTime*(1.45+uVoice*2.6));
+  float audioMorph=lobe*(.025+voiceGate*(.11+mid*.13))+(transformer-.5)*voiceGate*(.045+high*.06);
+  p*=1.+(n-.5)*(.52+uVoice*.32)+audioMorph+.045*sin(uTime*(1.45+uVoice*2.6));
   vPosition=p; vNormal=normalize(normalMatrix*normal);
   vec4 mv=modelViewMatrix*vec4(p,1.); vView=normalize(-mv.xyz);
   gl_Position=projectionMatrix*mv;
 }`;
 export const coreFragment = /* glsl */ `
-uniform float uTime; uniform float uVoice; varying vec3 vPosition; varying vec3 vNormal; varying vec3 vView;
+uniform float uTime; uniform float uVoice; uniform vec4 uVoiceBands; varying vec3 vPosition; varying vec3 vNormal; varying vec3 vView;
 ${noise}
 void main(){
   vec3 p=vPosition*4.8+vec3(uTime*.28,-uTime*.46,uTime*.12);
@@ -32,9 +48,10 @@ void main(){
   float rim=pow(1.-facing,2.);
   vec3 dark=vec3(.06,.002,.015);
   vec3 fire=mix(vec3(1.7,.14,.035),vec3(2.8,1.3,.18),smoothstep(.28,.7,n));
+  fire=mix(fire,vec3(1.2,.36,.72),uVoiceBands.w*.2);
   vec3 col=mix(dark,fire*.4,smoothstep(.28,.72,n));
   col+=threads*vec3(1.6,.65,.08)+rim*vec3(1.5,.16,.02);
-  col+=pow(facing,18.)*vec3(2.2,1.4,.6)*(1.+uVoice*.55);
+  col+=pow(facing,18.)*vec3(2.2,1.4,.6)*(1.+uVoice*.55+uVoiceBands.z*.22);
   float edge=1.-smoothstep(.72,1.42,length(vPosition));
   gl_FragColor=vec4(col,.76+.18*edge+.04*uVoice);
 }`;

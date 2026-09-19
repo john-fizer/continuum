@@ -86,7 +86,14 @@ export function mountSupernova(
     qualityScale = 1;
   const pointer = new THREE.Vector2(),
     smoothed = new THREE.Vector2();
-  const uniforms = { uTime: { value: time }, uPixelRatio: { value: 1 }, uVoice: { value: 0 } };
+  const uniforms = {
+    uTime: { value: time },
+    uPixelRatio: { value: 1 },
+    uVoice: { value: 0 },
+    // Low, mid, presence, and high frequency envelopes become the
+    // superformula's live boundary conditions in the plasma vertex shader.
+    uVoiceBands: { value: new THREE.Vector4() },
+  };
   let signalStarted = time;
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
@@ -733,6 +740,22 @@ export function mountSupernova(
     uniforms.uTime.value = t;
     const voiceEnergy = Math.min(1, Math.max(0, controls.voiceEnergy || 0));
     uniforms.uVoice.value += (voiceEnergy - uniforms.uVoice.value) * 0.22;
+    const spectrum = controls.voiceSpectrum || [];
+    const band = (from: number, to: number) => {
+      if (!spectrum.length) return 0;
+      const start = Math.floor((spectrum.length - 1) * from);
+      const end = Math.max(start + 1, Math.ceil((spectrum.length - 1) * to));
+      let sum = 0;
+      for (let i = start; i <= end; i++) sum += spectrum[i] || 0;
+      return Math.min(1, sum / (end - start + 1));
+    };
+    const voiceBands = new THREE.Vector4(
+      band(0, .14),
+      band(.15, .39),
+      band(.4, .68),
+      band(.69, 1),
+    );
+    uniforms.uVoiceBands.value.lerp(voiceBands, 0.16);
     decorativeElectrons.visible = true;
     cortex.visible = false;
     signalField.visible = true;
@@ -776,7 +799,6 @@ export function mountSupernova(
       loop.rotation.x += Math.sin(t * 0.82 + loop.userData.phase) * 0.0018;
     });
     voiceCrown.visible = controls.attentionMode === true && voiceEnergy > 0.012;
-    const spectrum = controls.voiceSpectrum || [];
     voiceBars.forEach((bar) => {
       const level = spectrum[bar.userData.index % Math.max(1, spectrum.length)] || 0;
       const scale = 0.25 + Math.min(1, level * 1.8 + voiceEnergy * 0.6);
@@ -793,6 +815,11 @@ export function mountSupernova(
     core.scale.setScalar(
       (controls.attentionMode ? 0.86 : controls.focusId ? 0.68 : 1) *
         (1 + Math.sin(t * 1.18) * 0.07 + Math.sin(t * 0.31) * 0.025 + voiceEnergy * 0.17),
+    );
+    core.rotation.set(
+      t * .023 + uniforms.uVoiceBands.value.x * .045,
+      t * .075 + uniforms.uVoiceBands.value.y * .075,
+      .2 + uniforms.uVoiceBands.value.w * .055,
     );
     shell.scale.setScalar(controls.attentionMode ? 0.8 + Math.sin(t * 1.18) * 0.045 + voiceEnergy * 0.13 : 1);
     bloom.strength = 0.5 + voiceEnergy * 0.52;
@@ -828,7 +855,6 @@ export function mountSupernova(
     const distance = 10.8 / Math.min(1, width / height) / controls.zoom;
     camera.position.set(smoothed.x * 1.8, -smoothed.y * 1.24, distance);
     camera.lookAt(0, 0, 0);
-    core.rotation.set(t * 0.023, t * 0.075, 0.2);
     shell.rotation.set(0.16 + Math.sin(t * 0.06) * 0.08, t * 0.033, 0.2);
     if (!aiming)
       universe.rotation.set(
