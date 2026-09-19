@@ -117,6 +117,9 @@
   display: grid;
   place-items: center;
 }
+.attention-mobile-actions {
+  display: none;
+}
 .attention-input form .attention-mic {
   background: #102834;
   margin-right: 6px;
@@ -449,14 +452,53 @@
     min-height: 430px;
   }
   .attention-field .graph-tools {
-    top: 48px;
-    left: 10px;
+    display: none;
   }
   .attention-state {
     top: 12px;
     left: 12px;
     max-width: calc(100% - 120px);
     line-height: 1.35;
+  }
+  .attention-mobile-actions {
+    position: absolute;
+    top: 45px;
+    left: 12px;
+    right: 12px;
+    z-index: 5;
+    display: grid;
+    gap: 7px;
+  }
+  .attention-mobile-actions p {
+    margin: 0;
+    color: #b8d8e6;
+    font-size: 0.76rem;
+    font-weight: 650;
+  }
+  .attention-mobile-actions > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.35fr;
+    gap: 7px;
+  }
+  .attention-mobile-actions button {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 8px;
+    border: 1px solid #416777;
+    border-radius: 10px;
+    background: #071722e8;
+    color: #bfe9f7;
+    font-size: 0.73rem;
+    font-weight: 650;
+    box-shadow: 0 7px 22px #0006;
+  }
+  .attention-mobile-actions button:last-child {
+    border-color: #89683d;
+    color: #ffe0a2;
+    background: #1a130be8;
   }
   .attention-input {
     bottom: max(14px, env(safe-area-inset-bottom));
@@ -520,8 +562,7 @@
     margin-top: 5px;
   }
   .attention-input-meta > div {
-    width: 100%;
-    justify-content: space-between;
+    display: none;
   }
   .attention-evidence {
     position: fixed;

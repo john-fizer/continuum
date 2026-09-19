@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Mic,
   Plus,
+  Search,
   Volume2,
   Waves,
   Upload,
@@ -97,6 +98,7 @@ export function AttentionWorkspace({
   const audioContext = useRef<AudioContext | null>(null);
   const analysisFrame = useRef<number | null>(null);
   const analysisTick = useRef(0);
+  const queryInput = useRef<HTMLInputElement | null>(null);
   useEffect(() => () => {
     if (analysisFrame.current) cancelAnimationFrame(analysisFrame.current);
     audioContext.current?.close().catch(() => undefined);
@@ -256,6 +258,17 @@ export function AttentionWorkspace({
       setSpeaking(false);
       return;
     }
+    const speech = (window as typeof window & {
+      SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+      webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+    }).SpeechRecognition || (window as typeof window & {
+      webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+    }).webkitSpeechRecognition;
+    if (!speech) {
+      setError('Live voice input is not supported by this browser. Type your question and Continuum can still speak its answer.');
+      queryInput.current?.focus();
+      return;
+    }
     setConversationMode(true);
     setError('');
     beginListening(true);
@@ -377,6 +390,23 @@ export function AttentionWorkspace({
             </button>
           )}
         </div>
+        <div className="attention-mobile-actions" aria-label="Quick actions">
+          <p>What would you like to do?</p>
+          <div>
+            <button type="button" onClick={toggleConversationMode}>
+              <Waves size={16} />
+              Talk
+            </button>
+            <button type="button" onClick={() => queryInput.current?.focus()}>
+              <Search size={16} />
+              Ask
+            </button>
+            <button type="button" onClick={onImport}>
+              <Upload size={16} />
+              Add knowledge
+            </button>
+          </div>
+        </div>
         <KnowledgeGraph
           embedded
           nodes={graphNodes}
@@ -401,6 +431,7 @@ export function AttentionWorkspace({
             </label>
             <input
               id="attention-query"
+              ref={queryInput}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={conversationMode ? 'Talk through a connection or direct the research…' : 'Bring an idea into focus…'}
