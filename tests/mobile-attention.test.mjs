@@ -8,4 +8,6 @@ test('mobile attention exposes direct labeled actions instead of icon-only contr
   assert.match(source, /Talk\s*<\/button>/);
   assert.match(source, /Ask\s*<\/button>/);
   assert.match(source, /Add knowledge\s*<\/button>/);
+  assert.match(source, /void ask\(true\)/);
+  assert.match(source, /speaking \? 'Speaking' : 'Replay'/);
 });

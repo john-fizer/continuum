@@ -154,9 +154,17 @@ export function AttentionWorkspace({
         sourceIds: [id],
       });
   }
+  async function primeVoicePlayback() {
+    // iOS only permits delayed audio after an explicit user gesture when its
+    // audio context has been resumed inside that gesture.
+    const context = audioContext.current || new AudioContext();
+    audioContext.current = context;
+    if (context.state !== 'running') await context.resume();
+  }
   async function ask(readAloud = false) {
     const text = query.trim();
     if (!text || busy) return;
+    if (readAloud) await primeVoicePlayback();
     const version = ++requestId.current;
     setBusy(true);
     setError('');
@@ -423,7 +431,10 @@ export function AttentionWorkspace({
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              void ask();
+              // A submitted question is an explicit request for a reply. Start
+              // the natural voice automatically instead of making mobile users
+              // find a second, delayed Listen control after every answer.
+              void ask(true);
             }}
           >
             <label className="sr-only" htmlFor="attention-query">
@@ -581,9 +592,9 @@ export function AttentionWorkspace({
                   )}
                   <p>{result?.answer}</p>
                 </div>
-                <button onClick={() => void speakAnswer()} disabled={busy} aria-label="Read answer aloud" title="Read answer aloud">
+                <button onClick={() => void speakAnswer()} disabled={busy || speaking} aria-label={speaking ? 'Speaking answer' : 'Replay answer aloud'} title={speaking ? 'Speaking' : 'Replay answer aloud'}>
                   <Volume2 size={17} />
-                  Listen
+                  {speaking ? 'Speaking' : 'Replay'}
                 </button>
               </div>
               {!!attention.concepts.length && (
