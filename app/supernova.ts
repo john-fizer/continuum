@@ -277,7 +277,7 @@ export function mountSupernova(
       void main(){vec3 p=position; float r=length(p); p+=normalize(p)*.06*sin(r*5.-uTime*.7);
         p+=vec3(sin(p.y*2.4+uTime*.23),cos(p.z*2.1-uTime*.19),sin(p.x*2.6+uTime*.21))*.025;
         float wave=pow(.5+.5*sin(r*7.-uTime*2.8),12.);
-        float palette=.5+.5*sin(p.x*.72+p.y*.53+p.z*.64+uTime*.04);
+        float palette=.5+.5*sin(p.x*.72+p.y*.53+p.z*.64+uTime*.12);
         vec3 shared=mix(vec3(.18,.85,1.15),vec3(.72,.42,1.1),palette);
         shared=mix(shared,vec3(1.25,.62,.24),max(0.,sin(p.y*.8+uTime*.03))*.28);
         vColor=mix(color,shared,.78)*(.6+wave*3.); vPulse=.55+wave*.45;
@@ -550,7 +550,10 @@ export function mountSupernova(
         float burst=smoothstep(.006,.09,max(uVoice,max(uVoiceBands.y,uVoiceBands.z)*.75));
         float breath=.65+.35*sin(uTime*1.3+aSeed*40.); p+=normalize(p)*burst*(.08+fract(aSeed*37.)*.35)*sin(uTime*4.+aSeed*30.);
         vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv;
-        gl_PointSize=clamp(uPixelRatio*(9.+fract(aSeed*91.)*20.+burst*15.)/max(1.,-mv.z),1.,12.); vColor=color*(.75+breath+burst*.5); vAlpha=.18+breath*.62+burst*.18; }`,
+        float palette=.5+.5*sin(p.x*.72+p.y*.53+p.z*.64+uTime*.12);
+        vec3 shared=mix(vec3(.18,.85,1.15),vec3(.72,.42,1.1),palette);
+        shared=mix(shared,vec3(1.25,.62,.24),max(0.,sin(p.y*.8+uTime*.09))*.32);
+        gl_PointSize=clamp(uPixelRatio*(9.+fract(aSeed*91.)*20.+burst*15.)/max(1.,-mv.z),1.,12.); vColor=mix(color,shared,.84)*(.75+breath+burst*.5); vAlpha=.18+breath*.62+burst*.18; }`,
     fragmentShader: `uniform float uStrength; varying vec3 vColor; varying float vAlpha;
       void main(){ float r=length(gl_PointCoord-.5)*2.; if(r>1.) discard; float a=exp(-r*r*4.5)*(1.-smoothstep(.5,1.,r)); gl_FragColor=vec4(vColor,a*vAlpha*uStrength); }`,
   }));

@@ -85,6 +85,10 @@ void main(){
   vec3 gold=vec3(1.8,.85,.18), rose=vec3(1.5,.13,.46), ice=vec3(.25,.7,1.1);
   vColor=mix(gold,rose,smoothstep(.28,.82,n)*.78);
   vColor=mix(vColor,ice,smoothstep(1.8,2.5,length(p))*(1.-latitude)*.65);
+  float palette=.5+.5*sin(dir.x*.72+dir.y*.53+dir.z*.64+uTime*.12);
+  vec3 shared=mix(vec3(.18,.85,1.15),vec3(.72,.42,1.1),palette);
+  shared=mix(shared,vec3(1.25,.62,.24),max(0.,sin(dir.y*.8+uTime*.09))*.32);
+  vColor=mix(vColor,shared,.58);
   float filament=pow(1.-abs(ripple),2.);
   vAlpha=(.035+filament*.43+burst*.21)*(.65+.35*sin(aSeed*6.28+uTime*.5));
 }`;

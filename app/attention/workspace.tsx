@@ -129,13 +129,13 @@ export function AttentionWorkspace({
       : concept
         ? [{ id: concept.id, title: concept.label.toUpperCase() }, ...activeSources]
         : activeConcepts.map((c) => ({ id: c.id, title: c.label.toUpperCase() }))
-    : sources;
+    : [];
   const ids = new Set(graphNodes.map((n) => n.id));
   const graphLinks = result
     ? (concept ? attention.evidenceEdges : attention.edges).filter(
         (e) => ids.has(e.source_a) && ids.has(e.source_b),
       )
-    : data?.links || [];
+    : [];
   function collapse() {
     requestId.current++;
     setBusy(false);
