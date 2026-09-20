@@ -758,13 +758,17 @@ export function mountSupernova(
       band(.69, 1),
     );
     uniforms.uVoiceBands.value.lerp(voiceBands, 0.16);
+    // A shared, slow orbital clock binds the field, core, branches, and
+    // particles into one organism. Each layer can still move at its own rate.
+    const systemOrbit = t * 0.018;
+    const systemBreath = Math.sin(systemOrbit * 2.1);
     decorativeElectrons.visible = true;
     cortex.visible = false;
     signalField.visible = true;
     fieldUniforms.uStrength.value = controls.attentionMode ? 1 : 0.24;
-    signalField.rotation.z = Math.sin(t * 0.045) * 0.075;
-    signalField.rotation.y = t * 0.016;
-    signalField.rotation.x = Math.sin(t * 0.031) * 0.065;
+    signalField.rotation.z = Math.sin(t * 0.045) * 0.075 + systemBreath * 0.025;
+    signalField.rotation.y = systemOrbit * 0.9;
+    signalField.rotation.x = Math.sin(t * 0.031) * 0.065 + Math.cos(systemOrbit) * 0.018;
     const litWhip = Math.floor(t * 0.085) % paths.length;
     streamTrails.material.opacity = controls.attentionMode ? 0.038 + (Math.sin(t * 1.1) + 1) * 0.018 + voiceEnergy * 0.06 : 0.022;
     for (let index = 0; index < travelerCount; index++) {
@@ -781,9 +785,9 @@ export function mountSupernova(
     travelerGeometry.attributes.color.needsUpdate = true;
     filaments.visible = true;
     filamentMaterial.opacity = controls.attentionMode ? 0.17 + voiceEnergy * 0.12 : 1;
-    filaments.rotation.y = t * 0.006;
-    filaments.rotation.x = Math.sin(t * 0.035) * 0.06;
-    filaments.rotation.z = Math.cos(t * 0.027) * 0.035;
+    filaments.rotation.y = systemOrbit * 0.48;
+    filaments.rotation.x = Math.sin(t * 0.035) * 0.06 + systemBreath * 0.028;
+    filaments.rotation.z = Math.cos(t * 0.027) * 0.035 + Math.sin(systemOrbit) * 0.02;
     voiceArcs.visible = controls.attentionMode === true && voiceEnergy > .035;
     voiceArcLines.forEach((line, index) => {
       const pulse = Math.max(0, Math.sin(t * 4.6 + line.userData.phase));
@@ -792,6 +796,7 @@ export function mountSupernova(
     });
     plasmaCorona.visible = controls.attentionMode === true;
     plasmaCorona.scale.setScalar(0.72 + Math.sin(t * 1.68) * 0.06 + Math.sin(t * 0.43) * 0.03 + voiceEnergy * 0.14);
+    plasmaCorona.rotation.set(systemBreath * .055, systemOrbit * .38, Math.cos(systemOrbit) * .04);
     plasmaCorona.children.forEach((loop) => {
       const velocity = loop.userData.spin as THREE.Vector3;
       const pace = reduced ? 0.35 : 1;
@@ -819,9 +824,9 @@ export function mountSupernova(
         (1 + Math.sin(t * 1.18) * 0.07 + Math.sin(t * 0.31) * 0.025 + voiceEnergy * 0.17),
     );
     core.rotation.set(
-      t * .023 + uniforms.uVoiceBands.value.x * .045,
-      t * .075 + uniforms.uVoiceBands.value.y * .075,
-      .2 + uniforms.uVoiceBands.value.w * .055,
+      systemOrbit * .72 + uniforms.uVoiceBands.value.x * .045,
+      systemOrbit * 2.15 + uniforms.uVoiceBands.value.y * .075,
+      .2 + systemBreath * .05 + uniforms.uVoiceBands.value.w * .055,
     );
     shell.scale.setScalar(controls.attentionMode ? 0.8 + Math.sin(t * 1.18) * 0.045 + voiceEnergy * 0.13 : 1);
     bloom.strength = 0.5 + voiceEnergy * 0.52;
@@ -857,12 +862,12 @@ export function mountSupernova(
     const distance = 10.8 / Math.min(1, width / height) / controls.zoom;
     camera.position.set(smoothed.x * 1.8, -smoothed.y * 1.24, distance);
     camera.lookAt(0, 0, 0);
-    shell.rotation.set(0.16 + Math.sin(t * 0.06) * 0.08, t * 0.033, 0.2);
+    shell.rotation.set(0.16 + Math.sin(t * 0.06) * 0.08 + systemBreath * .03, systemOrbit * 1.82, 0.2);
     if (!aiming)
       universe.rotation.set(
-        -0.06 + smoothed.y * 0.1,
-        smoothed.x * 0.16,
-        0.06 * Math.sin(t * 0.07),
+        -0.06 + smoothed.y * 0.1 + systemBreath * .026,
+        smoothed.x * 0.16 + Math.sin(systemOrbit) * .055,
+        0.06 * Math.sin(t * 0.07) + Math.cos(systemOrbit) * .022,
       );
     halo.quaternion.copy(camera.quaternion);
     dust.rotation.y = t * 0.006;

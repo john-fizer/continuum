@@ -27,7 +27,9 @@ void main(){
   // early enough for syllables to visibly move the field.
   float voiceGate=smoothstep(.004,.075,max(uVoice,max(mid,presence)*.72));
   float phi=atan(p.y,p.x)+uTime*(.035+mid*.075);
-  float m=5.+floor(presence*4.+.5);
+  // Keep the petal count continuous: quantizing it made the core jump at
+  // every spectral threshold and looked like a rendering glitch.
+  float m=5.+presence*3.25+mid*.65;
   float formula=superRadius(phi,m,.68+low*.48,.8+mid*1.25,.8+high*1.25,1.+low*.11,1.+high*.11);
   float lobe=clamp(formula-1.,-.34,.48);
   // Continuous seeded drift is the transformer field: it never flashes frame-to-frame.
@@ -55,7 +57,7 @@ void main(){
   col+=threads*vec3(1.6,.65,.08)+rim*vec3(1.5,.16,.02);
   col+=pow(facing,18.)*vec3(2.2,1.4,.6)*(1.+uVoice*.55+uVoiceBands.z*.22);
   float edge=1.-smoothstep(.72,1.42,length(vPosition));
-  gl_FragColor=vec4(col,.76+.18*edge+.04*uVoice);
+  gl_FragColor=vec4(col,.42+.14*edge+.035*uVoice);
 }`;
 
 export const shellVertex = /* glsl */ `
