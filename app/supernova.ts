@@ -544,11 +544,13 @@ export function mountSupernova(
   streamGeometry.setAttribute('aSeed', new THREE.Float32BufferAttribute(streamSeeds, 1));
   const streamParticles = new THREE.Points(streamGeometry, new THREE.ShaderMaterial({
     uniforms: fieldUniforms, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    vertexShader: `uniform float uTime; uniform float uPixelRatio; attribute vec3 aEnd; attribute vec3 color; attribute float aSeed;
+    vertexShader: `uniform float uTime; uniform float uPixelRatio; uniform float uVoice; uniform vec4 uVoiceBands; attribute vec3 aEnd; attribute vec3 color; attribute float aSeed;
       varying vec3 vColor; varying float vAlpha;
       void main(){ float velocity=.045+fract(aSeed*17.)*.055; float wave=fract(aSeed+uTime*velocity); vec3 p=mix(position,aEnd,wave);
-        float breath=.65+.35*sin(uTime*1.3+aSeed*40.); vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv;
-        gl_PointSize=clamp(uPixelRatio*(9.+fract(aSeed*91.)*20.)/max(1.,-mv.z),1.,8.); vColor=color*(.75+breath); vAlpha=.18+breath*.62; }`,
+        float burst=smoothstep(.006,.09,max(uVoice,max(uVoiceBands.y,uVoiceBands.z)*.75));
+        float breath=.65+.35*sin(uTime*1.3+aSeed*40.); p+=normalize(p)*burst*(.08+fract(aSeed*37.)*.35)*sin(uTime*4.+aSeed*30.);
+        vec4 mv=modelViewMatrix*vec4(p,1.); gl_Position=projectionMatrix*mv;
+        gl_PointSize=clamp(uPixelRatio*(9.+fract(aSeed*91.)*20.+burst*15.)/max(1.,-mv.z),1.,12.); vColor=color*(.75+breath+burst*.5); vAlpha=.18+breath*.62+burst*.18; }`,
     fragmentShader: `uniform float uStrength; varying vec3 vColor; varying float vAlpha;
       void main(){ float r=length(gl_PointCoord-.5)*2.; if(r>1.) discard; float a=exp(-r*r*4.5)*(1.-smoothstep(.5,1.,r)); gl_FragColor=vec4(vColor,a*vAlpha*uStrength); }`,
   }));
@@ -857,14 +859,14 @@ export function mountSupernova(
     activationBlooms.rotation.x = Math.sin(t * 0.17) * 0.045;
     core.scale.setScalar(
       (controls.attentionMode ? 0.86 : controls.focusId ? 0.68 : 1) *
-        (1 + Math.sin(t * 1.18) * 0.07 + Math.sin(t * 0.31) * 0.025 + voiceEnergy * 0.17),
+        (1 + Math.sin(t * .46) * .018 + Math.sin(t * .17) * .01 + voiceEnergy * .025),
     );
     core.rotation.set(
       systemOrbit * .72 + uniforms.uVoiceBands.value.x * .045,
       systemOrbit * 2.15 + uniforms.uVoiceBands.value.y * .075,
       .2 + systemBreath * .05 + uniforms.uVoiceBands.value.w * .055,
     );
-    shell.scale.setScalar(controls.attentionMode ? 0.8 + Math.sin(t * 1.18) * 0.045 + voiceEnergy * 0.13 : 1);
+    shell.scale.setScalar(controls.attentionMode ? 0.8 + Math.sin(t * .78) * .025 : 1);
     bloom.strength = 0.5 + voiceEnergy * 0.52;
     core.position.z = controls.focusId ? -0.3 : 0;
     const signal = controls.signal;

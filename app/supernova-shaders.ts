@@ -35,8 +35,10 @@ void main(){
   // Continuous seeded drift is the transformer field: it never flashes frame-to-frame.
   float transformer=fbm(normalize(p)*2.65+vec3(uTime*.09,mid*3.2,high*2.7));
   float n=fbm(p*3.2+vec3(uTime*.42,-uTime*.34,uTime*.25));
-  float audioMorph=lobe*(.035+voiceGate*(.22+mid*.28))+(transformer-.5)*voiceGate*(.075+high*.10);
-  p*=1.+(n-.5)*(.52+uVoice*.32)+audioMorph+.045*sin(uTime*(1.45+uVoice*2.6));
+  // Keep the singularity anchored. Voice energy belongs to the escaping
+  // particle field; the core only makes a quiet, slow surface response.
+  float audioMorph=lobe*(.018+voiceGate*(.055+mid*.07))+(transformer-.5)*voiceGate*(.018+high*.025);
+  p*=1.+(n-.5)*(.17+uVoice*.035)+audioMorph+.016*sin(uTime*(.72+uVoice*.35));
   vPosition=p; vNormal=normalize(normalMatrix*normal);
   vec4 mv=modelViewMatrix*vec4(p,1.); vView=normalize(-mv.xyz);
   gl_Position=projectionMatrix*mv;
@@ -64,7 +66,7 @@ void main(){
 }`;
 
 export const shellVertex = /* glsl */ `
-uniform float uTime; uniform float uPixelRatio;
+uniform float uTime; uniform float uPixelRatio; uniform float uVoice; uniform vec4 uVoiceBands;
 attribute float aSeed; attribute float aSize;
 varying vec3 vColor; varying float vAlpha;
 ${noise}
@@ -72,17 +74,19 @@ void main(){
   vec3 p=position; vec3 dir=normalize(p);
   float n=fbm(dir*3.4+vec3(uTime*.13,-uTime*.09,uTime*.07));
   float ripple=sin(n*13.+uTime*.45+length(p)*4.);
-  p=dir*(length(p)+.4*ripple+.45*(n-.5));
+  float burst=smoothstep(.006,.09,max(uVoice,max(uVoiceBands.y,uVoiceBands.z)*.75));
+  float wave=.35+.65*sin(uTime*(3.1+uVoiceBands.z*2.)+n*19.+dir.y*4.);
+  p=dir*(length(p)+.4*ripple+.45*(n-.5)+burst*wave*(.14+n*.48));
   p+=vec3(sin(p.y*3.+uTime*.2),cos(p.z*3.-uTime*.2),sin(p.x*3.))* .045;
   vec4 mv=modelViewMatrix*vec4(p,1.);
   gl_Position=projectionMatrix*mv;
-  gl_PointSize=clamp(aSize*uPixelRatio*16./max(1.,-mv.z),.65,7.);
+  gl_PointSize=clamp(aSize*uPixelRatio*(16.+burst*17.)/max(1.,-mv.z),.65,10.);
   float latitude=dir.y*.5+.5;
   vec3 gold=vec3(1.8,.85,.18), rose=vec3(1.5,.13,.46), ice=vec3(.25,.7,1.1);
   vColor=mix(gold,rose,smoothstep(.28,.82,n)*.78);
   vColor=mix(vColor,ice,smoothstep(1.8,2.5,length(p))*(1.-latitude)*.65);
   float filament=pow(1.-abs(ripple),2.);
-  vAlpha=(.035+filament*.43)*(.65+.35*sin(aSeed*6.28+uTime*.5));
+  vAlpha=(.035+filament*.43+burst*.21)*(.65+.35*sin(aSeed*6.28+uTime*.5));
 }`;
 export const particleFragment = /* glsl */ `
 varying vec3 vColor; varying float vAlpha;

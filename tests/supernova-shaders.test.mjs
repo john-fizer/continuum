@@ -11,4 +11,6 @@ test('plasma core uses a voice-driven superformula deformation field', async () 
   assert.doesNotMatch(source, /float m=5\.\+floor/);
   assert.match(source, /gl_FragColor=vec4\(col,\(\.42/);
   assert.match(source, /float dissolve=/);
+  assert.match(source, /uniform float uVoice; uniform vec4 uVoiceBands/);
+  assert.match(source, /float burst=/);
 });
