@@ -7,4 +7,6 @@ test('the graph selects the low-cost renderer for phone-sized screens', async ()
   assert.match(source, /max-width: 700px/);
   assert.match(source, /const particles = compact \? 6000 : 52000/);
   assert.match(source, /compact\s*\?\s*600000/);
+  assert.match(source, /continuumGradient/);
+  assert.match(source, /flowerCurve/);
 });

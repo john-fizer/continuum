@@ -57,7 +57,10 @@ void main(){
   col+=threads*vec3(1.6,.65,.08)+rim*vec3(1.5,.16,.02);
   col+=pow(facing,18.)*vec3(2.2,1.4,.6)*(1.+uVoice*.55+uVoiceBands.z*.22);
   float edge=1.-smoothstep(.72,1.42,length(vPosition));
-  gl_FragColor=vec4(col,.42+.14*edge+.035*uVoice);
+  // The shell's edge dissolves into its particle corona instead of reading as
+  // a hard translucent ball beneath the field.
+  float dissolve=1.-smoothstep(.82,1.2,length(vPosition)+(n-.5)*.28);
+  gl_FragColor=vec4(col,(.42+.14*edge+.035*uVoice)*dissolve);
 }`;
 
 export const shellVertex = /* glsl */ `

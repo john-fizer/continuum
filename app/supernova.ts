@@ -154,6 +154,13 @@ export function mountSupernova(
   // Multiple inclined, irregular magnetic loops surround the entire sphere.
   const filamentPositions: number[] = [],
     filamentColors: number[] = [];
+  // Every visual layer samples the same cyan → violet → amber field. It
+  // prevents branches and signal streams from becoming disconnected color blocks.
+  const continuumGradient = (point: THREE.Vector3, phase = 0) => {
+    const wave = 0.5 + 0.5 * Math.sin(point.x * .72 + point.y * .53 + point.z * .64 + phase);
+    const color = new THREE.Color('#46dcff').lerp(new THREE.Color('#aa7aff'), wave);
+    return color.lerp(new THREE.Color('#ffbd72'), Math.max(0, Math.sin(point.y * .8 + phase)) * .34);
+  };
   for (let i = 0; i < 24; i++) {
     const tilt = new THREE.Euler(
       rand() * Math.PI,
@@ -161,9 +168,6 @@ export function mountSupernova(
       rand() * Math.PI,
     );
     let last: THREE.Vector3 | undefined;
-    const col = new THREE.Color(
-      i % 5 === 0 ? '#a14ec8' : i % 3 === 0 ? '#ff6237' : '#ffa939',
-    );
     for (let j = 0; j <= 180; j++) {
       const a = (j / 180) * Math.PI * 2,
         r =
@@ -175,7 +179,10 @@ export function mountSupernova(
       ).applyEuler(tilt);
       if (last) {
         filamentPositions.push(...last.toArray(), ...p.toArray());
-        filamentColors.push(...col.toArray(), ...col.toArray());
+        filamentColors.push(
+          ...continuumGradient(last, i * .38).toArray(),
+          ...continuumGradient(p, i * .38).toArray(),
+        );
       }
       last = p;
     }
@@ -191,6 +198,7 @@ export function mountSupernova(
     length: number,
     depth: number,
     col: THREE.Color,
+    phase: number,
   ) {
     const end = start.clone().addScaledVector(direction, length);
     const parts = 9;
@@ -206,7 +214,10 @@ export function mountSupernova(
         ).multiplyScalar(0.13 * Math.sin(u * Math.PI)),
       );
       filamentPositions.push(...last.toArray(), ...p.toArray());
-      filamentColors.push(...col.toArray(), ...col.toArray());
+      filamentColors.push(
+        ...continuumGradient(last, phase).lerp(col, .16).toArray(),
+        ...continuumGradient(p, phase).lerp(col, .16).toArray(),
+      );
       last = p;
     }
     if (depth > 0)
@@ -226,6 +237,7 @@ export function mountSupernova(
           length * 0.64,
           depth - 1,
           col,
+          phase + .31 + i * .37,
         );
   }
   for (let arm = 0; arm < 9; arm++) {
@@ -243,6 +255,7 @@ export function mountSupernova(
       new THREE.Color(
         ['#3ca8e8', '#a260e8', '#e450a1', '#f69738'][arm % 4],
       ).multiplyScalar(0.5),
+      a,
     );
   }
   const filamentsGeometry = new THREE.BufferGeometry();
@@ -261,9 +274,13 @@ export function mountSupernova(
     blending: THREE.AdditiveBlending,
     vertexShader: `${noise}
       uniform float uTime; attribute vec3 color; varying vec3 vColor; varying float vPulse;
-      void main(){vec3 p=position; float r=length(p); p+=normalize(p)*.04*sin(r*5.-uTime*.7);
+      void main(){vec3 p=position; float r=length(p); p+=normalize(p)*.06*sin(r*5.-uTime*.7);
+        p+=vec3(sin(p.y*2.4+uTime*.23),cos(p.z*2.1-uTime*.19),sin(p.x*2.6+uTime*.21))*.025;
         float wave=pow(.5+.5*sin(r*7.-uTime*2.8),12.);
-        vColor=color*(.6+wave*3.); vPulse=.55+wave*.45;
+        float palette=.5+.5*sin(p.x*.72+p.y*.53+p.z*.64+uTime*.04);
+        vec3 shared=mix(vec3(.18,.85,1.15),vec3(.72,.42,1.1),palette);
+        shared=mix(shared,vec3(1.25,.62,.24),max(0.,sin(p.y*.8+uTime*.03))*.28);
+        vColor=mix(color,shared,.78)*(.6+wave*3.); vPulse=.55+wave*.45;
         gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
     fragmentShader:
       'varying vec3 vColor; varying float vPulse; void main(){gl_FragColor=vec4(vColor,vPulse);}',
@@ -274,15 +291,34 @@ export function mountSupernova(
   // The synthesis point has its own magnetic corona in attention mode. It is
   // a breathing stellar body inside the field, not another graph node.
   const plasmaCorona = new THREE.Group();
-  const coronaColors = ['#ffdf9e', '#ff8748', '#f1a7e9', '#ffd074', '#77e5ff', '#ffb26b'];
   for (let ring = 0; ring < 7; ring++) {
     const radius = 1.04 + ring * 0.105 + (ring % 2 ? 0.035 : 0);
+    const flowerPoints: THREE.Vector3[] = [];
+    for (let point = 0; point < 96; point++) {
+      const theta = (point / 96) * Math.PI * 2;
+      const petal = 1 + .085 * Math.sin(theta * (5 + ring % 3) + ring * .72);
+      flowerPoints.push(new THREE.Vector3(
+        Math.cos(theta) * radius * petal,
+        Math.sin(theta) * radius * petal,
+        Math.sin(theta * (3 + ring % 2) + ring) * .075,
+      ));
+    }
+    // Nested flower curves act like a soft accordion around the plasma,
+    // rather than seven mechanical torus rings.
+    const flowerCurve = new THREE.CatmullRomCurve3(flowerPoints, true, 'centripetal');
+    const flowerGeometry = new THREE.TubeGeometry(flowerCurve, 180, 0.008 + (ring % 3) * .003, 5, true);
+    const flowerColors = new Float32Array(flowerGeometry.attributes.position.count * 3);
+    for (let vertex = 0; vertex < flowerGeometry.attributes.position.count; vertex++) {
+      const point = new THREE.Vector3().fromBufferAttribute(flowerGeometry.attributes.position, vertex);
+      flowerColors.set(continuumGradient(point, ring * .55).toArray(), vertex * 3);
+    }
+    flowerGeometry.setAttribute('color', new THREE.BufferAttribute(flowerColors, 3));
     const loop = new THREE.Mesh(
-      new THREE.TorusGeometry(radius, 0.011 + (ring % 3) * 0.004, 6, 128),
+      flowerGeometry,
       new THREE.MeshBasicMaterial({
-        color: coronaColors[ring % coronaColors.length],
+        vertexColors: true,
         transparent: true,
-        opacity: 0.07 + (ring % 3) * 0.025,
+        opacity: 0.045 + (ring % 3) * 0.018,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       }),
@@ -456,13 +492,13 @@ export function mountSupernova(
   for (let arm = 0; arm < 14; arm++) {
     const angle = (arm / 14) * Math.PI * 2 + rand() * 0.18;
     const warm = arm % 4 === 0;
-    const color = new THREE.Color(warm ? '#ff9e55' : '#46dcff');
     const coreColor = new THREE.Color('#ffd7a1');
     const edge = new THREE.Vector3(
       Math.cos(angle) * (3.7 + rand() * 1.5),
       Math.sin(angle) * (2.0 + rand() * 1.05),
       (rand() - 0.5) * 2.4,
     );
+    const color = continuumGradient(edge, angle).lerp(coreColor, warm ? .24 : .08);
     const bend = edge.clone().multiplyScalar(0.48).add(new THREE.Vector3(
       Math.sin(angle * 3. + arm) * 0.9,
       Math.cos(angle * 2. + arm) * 0.52,
