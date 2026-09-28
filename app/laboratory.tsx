@@ -13,11 +13,23 @@ export type Experiment = {
     split_method?: string;
     test_mae?: number;
     baseline_test_mae?: number;
+    task_type?: 'regression' | 'classification';
+    metric?: 'mae' | 'accuracy';
+    test_score?: number;
+    baseline_test_score?: number;
+    profile?: {
+      duplicate_rows?: number;
+      columns?: { name: string; type: string; missing: number; unique: number }[];
+    };
+    excluded_features?: { name: string; reason: string }[];
+    transformations?: { feature: string; rule: string }[];
+    quality_gates?: Record<string, string>;
     selected?: { kind: string; feature: string | null };
     candidates?: {
       kind: string;
       feature: string | null;
-      validation_mae: number;
+      validation_mae?: number;
+      validation_score?: number;
     }[];
     limitations?: string;
     model_artifact?: unknown;
@@ -42,13 +54,13 @@ export function Laboratory({
     <>
       <section className="capture-panel">
         <div className="section-heading">
-          <h2>A small experiment. A measurable result.</h2>
+          <h2>Prepare data. Test a hypothesis.</h2>
           <span className="tag">{cloud ? 'Private cloud AutoML' : 'Local AutoML baseline'}</span>
         </div>
         <p>
-          Compare a constant prediction, single-feature linear models, and
-          decision stumps. The final 20% of rows stay separate until the winning
-          model is chosen. The raw dataset and its held-out report stay in this brain.
+          Continuum profiles the CSV, removes identifier-like fields, checks for
+          target leakage, imputes missing feature values, and fits transforms on
+          training rows only. The final 20% stays untouched until a candidate is chosen.
         </p>
         <form
           onSubmit={async (e) => {
@@ -77,7 +89,7 @@ export function Laboratory({
               />
             </label>
             <label>
-              Import numeric CSV
+              Import CSV
               <input
                 type="file"
                 accept=".csv,text/csv"
@@ -106,8 +118,8 @@ export function Laboratory({
           </label>
           <div className="capture-actions">
             <p className="fine">
-              30–5,000 numeric rows. Up to 20 input columns. Row order is
-              preserved.
+              30–5,000 rows. Numeric and categorical features are supported.
+              Choose the exact outcome column; row order is preserved for evaluation.
             </p>
             <Button
               type="submit"
@@ -132,34 +144,44 @@ export function Laboratory({
             {ex.report?.status === 'completed' && (
               <>
                 <p>
-                  Selected: {ex.report.selected?.kind}
+                  Selected: {ex.report.selected?.kind?.replaceAll('_', ' ')}
                   {ex.report.selected?.feature
                     ? ` using ${ex.report.selected.feature}`
                     : ''}
                 </p>
                 <div className="metrics">
                   <div>
-                    <strong>{ex.report.test_mae?.toPrecision(4)}</strong>
-                    <span>Test error (MAE)</span>
+                    <strong>{(ex.report.test_score ?? ex.report.test_mae)?.toPrecision(4)}</strong>
+                    <span>Test {ex.report.metric?.toUpperCase() || 'error (MAE)'}</span>
                   </div>
                   <div>
-                    <strong>
-                      {ex.report.baseline_test_mae?.toPrecision(4)}
-                    </strong>
-                    <span>Constant baseline error</span>
+                    <strong>{(ex.report.baseline_test_score ?? ex.report.baseline_test_mae)?.toPrecision(4)}</strong>
+                    <span>Baseline {ex.report.metric?.toUpperCase() || 'error (MAE)'}</span>
                   </div>
                 </div>
                 <p className="fine">
-                  Lower error is better. {ex.report.rows} rows ·{' '}
+                  {ex.report.metric === 'accuracy' ? 'Higher is better.' : 'Lower error is better.'} {ex.report.rows} rows ·{' '}
                   {ex.report.split_method}
                 </p>
                 <details>
                   <summary>Model comparisons and limitations</summary>
                   {ex.report.candidates?.map((c, i) => (
                     <p key={i}>
-                      {c.kind} {c.feature || ''}: validation MAE{' '}
-                      {c.validation_mae.toPrecision(4)}
+                      {c.kind.replaceAll('_', ' ')} {c.feature || ''}: validation{' '}
+                      {(c.validation_score ?? c.validation_mae ?? 0).toPrecision(4)}
                     </p>
+                  ))}
+                  {ex.report.profile && (
+                    <p className="fine">
+                      Profile: {ex.report.profile.columns?.length || 0} fields ·{' '}
+                      {ex.report.profile.duplicate_rows || 0} duplicate rows removed before splitting.
+                    </p>
+                  )}
+                  {ex.report.transformations?.map((step) => (
+                    <p key={step.feature} className="fine">{step.feature}: {step.rule}</p>
+                  ))}
+                  {ex.report.excluded_features?.map((field) => (
+                    <p key={field.name} className="fine">Excluded {field.name}: {field.reason}.</p>
                   ))}
                   <p className="fine">{ex.report.limitations}</p>
                 </details>
