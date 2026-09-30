@@ -56,6 +56,7 @@ type Answer = {
   mode?: 'synthesis' | 'extractive';
 };
 type ConversationTurn = { role: 'user' | 'assistant'; content: string };
+type ConversationPhase = 'idle' | 'listening' | 'thinking' | 'speaking';
 export function AttentionWorkspace({
   data,
   onAsk,
@@ -99,10 +100,41 @@ export function AttentionWorkspace({
   const analysisFrame = useRef<number | null>(null);
   const analysisTick = useRef(0);
   const queryInput = useRef<HTMLInputElement | null>(null);
+  const phase = useRef<ConversationPhase>('idle');
+  const busyState = useRef(false);
+  const conversationEnabled = useRef(false);
+  const listenEpoch = useRef(0);
+  const rearmTimer = useRef<number | null>(null);
+  const playbackUrl = useRef<string | null>(null);
+  function setConversationPhase(next: ConversationPhase) {
+    phase.current = next;
+  }
+  function clearConversationRearm() {
+    if (rearmTimer.current !== null) window.clearTimeout(rearmTimer.current);
+    rearmTimer.current = null;
+  }
+  function stopListening() {
+    // Invalidate events from this recognizer before stopping it. Browsers can
+    // dispatch one final result after stop(), which must never become a turn.
+    listenEpoch.current += 1;
+    recognition.current?.stop();
+    recognition.current = null;
+    setListening(false);
+  }
   useEffect(() => () => {
+    clearConversationRearm();
+    stopListening();
+    audio.current?.pause();
+    if (playbackUrl.current) URL.revokeObjectURL(playbackUrl.current);
     if (analysisFrame.current) cancelAnimationFrame(analysisFrame.current);
     audioContext.current?.close().catch(() => undefined);
   }, []);
+  useEffect(() => {
+    conversationEnabled.current = conversationMode;
+  }, [conversationMode]);
+  useEffect(() => {
+    busyState.current = busy;
+  }, [busy]);
   const sources = data?.sources || [];
   const attention = workingAttention(
     seed,
@@ -166,6 +198,7 @@ export function AttentionWorkspace({
     if (!text || busy) return;
     if (readAloud) await primeVoicePlayback();
     const version = ++requestId.current;
+    if (conversationEnabled.current) setConversationPhase('thinking');
     setBusy(true);
     setError('');
     setPath([]);
@@ -184,14 +217,31 @@ export function AttentionWorkspace({
     } catch (e) {
       if (requestId.current === version)
         setError(e instanceof Error ? e.message : 'Retrieval failed.');
+      if (conversationEnabled.current) scheduleConversationListening();
     } finally {
       if (requestId.current === version) setBusy(false);
     }
   }
+  function scheduleConversationListening() {
+    clearConversationRearm();
+    if (!conversationEnabled.current) {
+      setConversationPhase('idle');
+      return;
+    }
+    // Let speaker output settle before opening the microphone. This is the
+    // echo guard: Continuum never listens while its own reply is audible.
+    rearmTimer.current = window.setTimeout(() => {
+      rearmTimer.current = null;
+      if (conversationEnabled.current && !busyState.current && phase.current !== 'speaking')
+        beginListening(true);
+    }, 800);
+  }
   function beginListening(conversation = false) {
-    if (busy || speaking) return;
+    if (busyState.current || speaking || phase.current === 'speaking') return;
+    if (conversation && !conversationEnabled.current) return;
     if (listening) {
-      recognition.current?.stop();
+      stopListening();
+      setConversationPhase('idle');
       return;
     }
     const SpeechRecognition = (window as typeof window & {
@@ -205,30 +255,48 @@ export function AttentionWorkspace({
       return;
     }
     const voice = new SpeechRecognition();
+    const epoch = ++listenEpoch.current;
     recognition.current = voice;
     voice.continuous = conversation;
     voice.interimResults = false;
     voice.lang = navigator.language || 'en-US';
     voice.onresult = (event) => {
+      if (epoch !== listenEpoch.current || phase.current !== 'listening') return;
       const transcript = Array.from(event.results)
         .map((result) => result[0]?.transcript || '')
         .join(' ')
         .trim();
       if (transcript) setQuery(transcript);
       if (transcript && conversation) {
-        voice.stop();
+        stopListening();
+        setConversationPhase('thinking');
         void askTranscript(transcript);
       }
     };
     voice.onerror = (event) => {
+      if (epoch !== listenEpoch.current) return;
       if (event.error !== 'aborted') setError(`Voice input: ${event.error}.`);
     };
-    voice.onend = () => setListening(false);
+    voice.onend = () => {
+      if (epoch !== listenEpoch.current) return;
+      recognition.current = null;
+      setListening(false);
+      // Speech recognition is allowed to end on its own. In live mode, reopen
+      // only when it was a listening turn and no answer is currently speaking.
+      if (conversation && conversationEnabled.current && phase.current === 'listening')
+        scheduleConversationListening();
+      else if (phase.current === 'listening') setConversationPhase('idle');
+    };
     setError('');
+    setConversationPhase('listening');
     setListening(true);
     voice.start();
   }
   function toggleVoiceInput() {
+    if (speaking) {
+      interruptSpeechAndListen();
+      return;
+    }
     beginListening(false);
   }
   async function askTranscript(transcript: string) {
@@ -240,6 +308,7 @@ export function AttentionWorkspace({
   async function askWithText(text: string, readAloud = false) {
     if (!text || busy) return;
     const version = ++requestId.current;
+    if (conversationEnabled.current) setConversationPhase('thinking');
     setBusy(true);
     setError('');
     setPath([]);
@@ -253,6 +322,7 @@ export function AttentionWorkspace({
       if (readAloud) await playAnswer(answer.answer);
     } catch (e) {
       if (requestId.current === version) setError(e instanceof Error ? e.message : 'Retrieval failed.');
+      if (conversationEnabled.current) scheduleConversationListening();
     } finally {
       if (requestId.current === version) setBusy(false);
     }
@@ -260,10 +330,11 @@ export function AttentionWorkspace({
   function toggleConversationMode() {
     if (conversationMode) {
       setConversationMode(false);
-      recognition.current?.stop();
-      audio.current?.pause();
-      stopVoiceAnalysis();
-      setSpeaking(false);
+      conversationEnabled.current = false;
+      clearConversationRearm();
+      stopListening();
+      interruptSpeech();
+      setConversationPhase('idle');
       return;
     }
     const speech = (window as typeof window & {
@@ -277,29 +348,67 @@ export function AttentionWorkspace({
       queryInput.current?.focus();
       return;
     }
+    conversationEnabled.current = true;
     setConversationMode(true);
     setError('');
     beginListening(true);
   }
+  function interruptSpeech() {
+    audio.current?.pause();
+    audio.current = null;
+    if (playbackUrl.current) URL.revokeObjectURL(playbackUrl.current);
+    playbackUrl.current = null;
+    stopVoiceAnalysis();
+    setSpeaking(false);
+  }
+  function interruptSpeechAndListen() {
+    interruptSpeech();
+    setConversationPhase('idle');
+    beginListening(conversationEnabled.current);
+  }
   async function playAnswer(text: string) {
     if (!text) return;
+    clearConversationRearm();
+    stopListening();
+    setConversationPhase('speaking');
     setSpeaking(true);
     try {
-      audio.current?.pause();
+      interruptSpeech();
+      setConversationPhase('speaking');
+      setSpeaking(true);
       const voice = await onSpeak(text);
       const bytes = Uint8Array.from(atob(voice.audio), (char) => char.charCodeAt(0));
       const src = URL.createObjectURL(new Blob([bytes], { type: voice.format }));
+      playbackUrl.current = src;
       const player = new Audio(src);
       audio.current = player;
       player.onended = () => {
+        if (audio.current !== player) return;
         URL.revokeObjectURL(src);
+        playbackUrl.current = null;
+        audio.current = null;
         stopVoiceAnalysis();
         setSpeaking(false);
-        if (conversationMode) beginListening(true);
+        if (conversationEnabled.current) scheduleConversationListening();
+        else setConversationPhase('idle');
+      };
+      player.onerror = () => {
+        if (audio.current !== player) return;
+        URL.revokeObjectURL(src);
+        playbackUrl.current = null;
+        audio.current = null;
+        stopVoiceAnalysis();
+        setSpeaking(false);
+        setError('Voice playback was blocked by this browser. Tap the microphone to resume the conversation.');
+        if (conversationEnabled.current) scheduleConversationListening();
+        else setConversationPhase('idle');
       };
       await player.play();
       beginVoiceAnalysis(player);
     } catch (e) {
+      interruptSpeech();
+      if (conversationEnabled.current) scheduleConversationListening();
+      else setConversationPhase('idle');
       setSpeaking(false);
       throw e;
     }
