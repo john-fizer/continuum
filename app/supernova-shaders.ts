@@ -55,8 +55,18 @@ void main(){
   vec3 dark=vec3(.06,.002,.015);
   vec3 fire=mix(vec3(1.7,.14,.035),vec3(2.8,1.3,.18),smoothstep(.28,.7,n));
   fire=mix(fire,vec3(1.2,.36,.72),uVoiceBands.w*.2);
+  // Shared fire field: the core hands its edge color directly to the escaping particles.
+  // The same cyan → violet → amber math used by the shell makes the nova read as
+  // one continuous flame instead of a warm ball surrounded by a separate effect.
+  vec3 dir=normalize(vPosition);
+  float palette=.5+.5*sin(dir.x*.72+dir.y*.53+dir.z*.64+uTime*.12);
+  vec3 cyan=vec3(.18,.85,1.15), violet=vec3(.72,.42,1.1), amber=vec3(1.25,.62,.24);
+  vec3 shared=mix(cyan,violet,palette);
+  shared=mix(shared,amber,max(0.,sin(dir.y*.8+uTime*.09))*.32);
+  float handoff=smoothstep(.24,.98,length(vPosition));
   vec3 col=mix(dark,fire*.4,smoothstep(.28,.72,n));
-  col+=threads*vec3(1.6,.65,.08)+rim*vec3(1.5,.16,.02);
+  col=mix(col,shared*(.45+.48*n),handoff*.72);
+  col+=threads*mix(vec3(1.6,.65,.08),shared, handoff*.68)+rim*mix(vec3(1.5,.16,.02),shared, handoff*.86);
   col+=pow(facing,18.)*vec3(2.2,1.4,.6)*(1.+uVoice*.55+uVoiceBands.z*.22);
   float edge=1.-smoothstep(.72,1.42,length(vPosition));
   // The shell's edge dissolves into its particle corona instead of reading as
