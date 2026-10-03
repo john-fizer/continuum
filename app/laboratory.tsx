@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import type { ExperimentMode } from './cloud/automl';
 
 export type Experiment = {
   id: string;
@@ -13,8 +14,8 @@ export type Experiment = {
     split_method?: string;
     test_mae?: number;
     baseline_test_mae?: number;
-    task_type?: 'regression' | 'classification';
-    metric?: 'mae' | 'accuracy';
+    task_type?: 'regression' | 'classification' | 'reinforcement';
+    metric?: 'mae' | 'accuracy' | 'logged_policy_reward';
     test_score?: number;
     baseline_test_score?: number;
     profile?: {
@@ -33,6 +34,7 @@ export type Experiment = {
     }[];
     limitations?: string;
     model_artifact?: unknown;
+    mode?: ExperimentMode;
   };
 };
 export function Laboratory({
@@ -42,13 +44,14 @@ export function Laboratory({
   cloud = false,
 }: {
   experiments: Experiment[];
-  submit: (name: string, target: string, dataset: string) => Promise<void>;
+  submit: (name: string, target: string, dataset: string, mode: ExperimentMode) => Promise<void>;
   busy: boolean;
   cloud?: boolean;
 }) {
   const [name, setName] = useState(''),
     [target, setTarget] = useState(''),
     [dataset, setDataset] = useState(''),
+    [mode, setMode] = useState<ExperimentMode>('automl'),
     [error, setError] = useState('');
   return (
     <>
@@ -59,16 +62,24 @@ export function Laboratory({
         </div>
         <p>
           Continuum profiles the CSV, removes identifier-like fields, checks for
-          target leakage, imputes missing feature values, and fits transforms on
-          training rows only. The final 20% stays untouched until a candidate is chosen.
+          target leakage, and fits transformations on training rows only. Each runner
+          keeps its final holdout isolated until model selection is complete.
         </p>
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            await submit(name, target, dataset);
+            await submit(name, target, dataset, mode);
           }}
         >
           <div className="lab-grid">
+            <label>
+              Training mode
+              <select value={mode} onChange={(e) => setMode(e.target.value as ExperimentMode)}>
+                <option value="automl">Interpretable AutoML baseline</option>
+                <option value="deep_learning">Dense tabular neural network</option>
+                <option value="reinforcement_learning">Offline tabular Q-learning</option>
+              </select>
+            </label>
             <label>
               Experiment name
               <input
@@ -80,12 +91,12 @@ export function Laboratory({
               />
             </label>
             <label>
-              Target column
+              {mode === 'reinforcement_learning' ? 'Decision fields' : 'Target column'}
               <input
                 required
                 value={target}
                 onChange={(e) => setTarget(e.target.value)}
-                placeholder="Exact CSV column name"
+                placeholder={mode === 'reinforcement_learning' ? 'state, action, reward[, next_state]' : 'Exact CSV outcome column'}
               />
             </label>
             <label>
@@ -118,8 +129,7 @@ export function Laboratory({
           </label>
           <div className="capture-actions">
             <p className="fine">
-              30–5,000 rows. Numeric and categorical features are supported.
-              Choose the exact outcome column; row order is preserved for evaluation.
+              {mode === 'deep_learning' ? '30–1,500 rows · numeric tabular features · bounded dense-network search.' : mode === 'reinforcement_learning' ? '30–5,000 ordered decision rows · state, action, reward fields required.' : '30–5,000 rows · numeric and categorical features are supported.'}
             </p>
             <Button
               type="submit"
@@ -139,7 +149,7 @@ export function Laboratory({
           <article className="connection" key={ex.id}>
             <span className="tag">{ex.report?.status || 'Queued'}</span>
             <h3>{ex.name}</h3>
-            <p>Prediction target: {ex.target}</p>
+            <p>{ex.report?.mode === 'reinforcement_learning' ? 'Decision fields' : 'Prediction target'}: {ex.target}</p>
             {ex.report?.error && <p role="alert">{ex.report.error}</p>}
             {ex.report?.status === 'completed' && (
               <>
@@ -160,7 +170,7 @@ export function Laboratory({
                   </div>
                 </div>
                 <p className="fine">
-                  {ex.report.metric === 'accuracy' ? 'Higher is better.' : 'Lower error is better.'} {ex.report.rows} rows ·{' '}
+                  {ex.report.metric === 'accuracy' || ex.report.metric === 'logged_policy_reward' ? 'Higher is better.' : 'Lower error is better.'} {ex.report.rows} rows ·{' '}
                   {ex.report.split_method}
                 </p>
                 <details>
@@ -214,16 +224,16 @@ export function Laboratory({
         )}
       </div>
       <div className="lab-grid below">
-        {['Deep learning', 'Reinforcement learning'].map((label) => (
-          <article className="lab-card" key={label}>
-            <span className="tag">Not connected</span>
-            <h3>{label}</h3>
-            <p>
-              Reserved for a future training adapter with suitable data,
-              evaluation, and compute.
-            </p>
-          </article>
-        ))}
+        <article className="lab-card">
+          <span className="tag">Connected</span>
+          <h3>Deep learning</h3>
+          <p>Dense tabular networks run with bounded architecture search, a separate holdout, and no automatic deployment.</p>
+        </article>
+        <article className="lab-card">
+          <span className="tag">Connected</span>
+          <h3>Reinforcement learning</h3>
+          <p>Offline tabular Q-learning evaluates logged decisions only. A simulator and prospective safety review are required before live control.</p>
+        </article>
       </div>
     </>
   );

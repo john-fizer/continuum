@@ -604,10 +604,13 @@ export default function Home() {
                 cloud={cloudEnabled}
                 experiments={data.experiments || []}
                 busy={busy}
-                submit={async (name, target, dataset) => {
+                submit={async (name, target, dataset, mode) => {
                   await act(async () => {
-                    if (cloudEnabled) await runCloudExperiment(id, name, target, dataset);
-                    else await api(`brains/${id}/experiments`, { name, target, dataset });
+                    if (cloudEnabled) await runCloudExperiment(id, name, target, dataset, mode);
+                    else {
+                      if (mode !== 'automl') throw new Error('Deep learning and reinforcement learning run through the cloud laboratory. Sign in to use them.');
+                      await api(`brains/${id}/experiments`, { name, target, dataset });
+                    }
                     await refresh();
                   });
                 }}

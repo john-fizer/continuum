@@ -173,3 +173,139 @@ export function runNumericExperiment(dataset, target) {
     split_sizes: { train: trainRaw.length, validation: validationRaw.length, test: testRaw.length }, split_method: prepared.validation_plan, metric, candidates: validation, selected: { kind: selected.kind, feature: selected.feature }, test_score: finalScore, baseline_test_score: baselineScore,
     ...(prepared.task_type === 'regression' ? { test_mae: finalScore, baseline_test_mae: baselineScore } : {}), optimizer_budget: { strategy: 'bounded deterministic candidate search', candidates: candidates.length, held_out_test_used_once: true }, quality_gates: { target: 'passed', usable_rows: 'passed', leakage: 'passed', holdout: 'passed' }, model_artifact: { kind: selected.kind, feature: selected.feature, transform_version: 'continuum-feature-pipeline-v1' }, limitations: 'Feature transformations are fitted only on training rows. This first run evaluates simple, interpretable candidates; predictive performance is not causation and does not authorize automated decisions. Review data relevance, temporal ordering, and omitted variables before acting.' };
 }
+
+function seededRandom(seed = 941) {
+  return () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+}
+
+function denseVectors(rows, features) {
+  return rows.map((row) => features.map((feature) => Number(row[feature.name])));
+}
+
+function trainDenseNetwork(x, y, { hidden, classification, epochs = 180, learningRate = .032 }) {
+  const random = seededRandom(hidden * 97 + x.length);
+  const width = x[0].length;
+  const w1 = Array.from({ length: hidden }, () => Array.from({ length: width }, () => (random() - .5) * .45));
+  const b1 = Array.from({ length: hidden }, () => 0);
+  const w2 = Array.from({ length: hidden }, () => (random() - .5) * .45);
+  let b2 = 0;
+  const sigmoid = (value) => 1 / (1 + Math.exp(-Math.max(-25, Math.min(25, value))));
+  const predict = (row) => {
+    const layer = w1.map((weights, unit) => Math.tanh(weights.reduce((sum, weight, index) => sum + weight * row[index], b1[unit])));
+    const output = w2.reduce((sum, weight, unit) => sum + weight * layer[unit], b2);
+    return classification ? sigmoid(output) : output;
+  };
+  for (let epoch = 0; epoch < epochs; epoch++) {
+    const gw1 = w1.map((weights) => weights.map(() => 0));
+    const gb1 = b1.map(() => 0), gw2 = w2.map(() => 0);
+    let gb2 = 0;
+    for (let index = 0; index < x.length; index++) {
+      const row = x[index];
+      const layer = w1.map((weights, unit) => Math.tanh(weights.reduce((sum, weight, feature) => sum + weight * row[feature], b1[unit])));
+      const raw = w2.reduce((sum, weight, unit) => sum + weight * layer[unit], b2);
+      const output = classification ? sigmoid(raw) : raw;
+      const delta = output - y[index];
+      gb2 += delta;
+      for (let unit = 0; unit < hidden; unit++) {
+        gw2[unit] += delta * layer[unit];
+        const hiddenDelta = delta * w2[unit] * (1 - layer[unit] ** 2);
+        gb1[unit] += hiddenDelta;
+        for (let feature = 0; feature < width; feature++) gw1[unit][feature] += hiddenDelta * row[feature];
+      }
+    }
+    const rate = learningRate / x.length;
+    for (let unit = 0; unit < hidden; unit++) {
+      w2[unit] -= rate * gw2[unit]; b1[unit] -= rate * gb1[unit];
+      for (let feature = 0; feature < width; feature++) w1[unit][feature] -= rate * gw1[unit][feature];
+    }
+    b2 -= rate * gb2;
+  }
+  return predict;
+}
+
+function splitPrepared(prepared) {
+  const [trainRaw, validationRaw, testRaw] = splitRows(prepared.records);
+  const numericFeatures = prepared.candidate_features.filter((field) => field.type === 'numeric');
+  if (!numericFeatures.length) throw new Error('Deep learning needs at least one safe numeric feature in this first tabular runner.');
+  const transformed = fitTransform(trainRaw, validationRaw, testRaw, numericFeatures);
+  return { trainRaw, validationRaw, testRaw, numericFeatures, transformed };
+}
+
+export function runDeepLearningExperiment(dataset, target) {
+  const prepared = profileDataset(dataset, target);
+  if (prepared.records.length > 1500) throw new Error('The in-process deep learning runner supports at most 1,500 rows. Use a dedicated training worker for larger jobs.');
+  const { trainRaw, validationRaw, testRaw, numericFeatures, transformed } = splitPrepared(prepared);
+  const classification = prepared.task_type === 'classification';
+  const labels = classification ? [...new Set(trainRaw.map((row) => String(row[target])))] : [];
+  if (classification && labels.length !== 2) throw new Error('The first dense classifier supports exactly two outcome labels.');
+  const rawY = trainRaw.map((row) => Number(row[target]));
+  const center = classification ? 0 : mean(rawY);
+  const scale = classification ? 1 : Math.sqrt(mean(rawY.map((value) => (value - center) ** 2))) || 1;
+  const encodeY = (rows) => classification ? rows.map((row) => String(row[target]) === labels[1] ? 1 : 0) : rows.map((row) => (Number(row[target]) - center) / scale);
+  const xTrain = denseVectors(transformed.train, numericFeatures);
+  const xValidation = denseVectors(transformed.validation, numericFeatures);
+  const xTest = denseVectors(transformed.test, numericFeatures);
+  const yTrain = encodeY(trainRaw);
+  const yValidation = encodeY(validationRaw);
+  const yTest = encodeY(testRaw);
+  const candidates = [4, 8].map((hidden) => {
+    const predict = trainDenseNetwork(xTrain, yTrain, { hidden, classification });
+    const value = classification
+      ? mean(xValidation.map((row, index) => (predict(row) >= .5 ? 1 : 0) === yValidation[index] ? 1 : 0))
+      : mean(xValidation.map((row, index) => Math.abs((predict(row) * scale + center) - Number(validationRaw[index][target]))));
+    return { hidden, predict, validation_score: value };
+  });
+  const selected = candidates.reduce((best, candidate, index) => (classification ? candidate.validation_score > candidates[best].validation_score : candidate.validation_score < candidates[best].validation_score) ? index : best, 0);
+  const winner = candidates[selected];
+  const testScore = classification
+    ? mean(xTest.map((row, index) => (winner.predict(row) >= .5 ? 1 : 0) === yTest[index] ? 1 : 0))
+    : mean(xTest.map((row, index) => Math.abs((winner.predict(row) * scale + center) - Number(testRaw[index][target]))));
+  return {
+    status: 'completed', mode: 'deep_learning', task: classification ? 'dense binary classification' : 'dense tabular regression', task_type: prepared.task_type,
+    rows: prepared.records.length, target, profile: prepared.profile, excluded_features: prepared.excluded_features, transformations: transformed.transformations,
+    feature_lineage: transformed.lineage, split_method: prepared.validation_plan, split_sizes: { train: trainRaw.length, validation: validationRaw.length, test: testRaw.length },
+    metric: classification ? 'accuracy' : 'mae', candidates: candidates.map(({ hidden, validation_score }) => ({ kind: 'dense_neural_network', feature: `${hidden} hidden units`, validation_score })),
+    selected: { kind: 'dense_neural_network', feature: `${winner.hidden} hidden units` }, test_score: testScore,
+    optimizer_budget: { strategy: 'bounded dense-network search', candidates: candidates.length, epochs: 180, held_out_test_used_once: true },
+    quality_gates: { target: 'passed', usable_rows: 'passed', leakage: 'passed', holdout: 'passed', modality: 'tabular numeric' },
+    model_artifact: { kind: 'dense_neural_network', hidden_units: winner.hidden, transform_version: 'continuum-feature-pipeline-v1' },
+    limitations: 'This is a bounded in-process tabular neural-network runner, not a general deep-learning service. The final score is offline evidence, not causation or permission to automate decisions. Image, audio, sequence, and larger jobs require a dedicated training worker.'
+  };
+}
+
+export function runReinforcementExperiment(dataset, { state, action, reward, nextState }) {
+  const prepared = profileDataset(dataset, reward);
+  for (const field of [state, action, reward]) if (!prepared.profile.columns.some((column) => column.name === field)) throw new Error(`Reinforcement field "${field}" is not present in the CSV.`);
+  if (prepared.records.length > 5000) throw new Error('The tabular reinforcement runner supports at most 5,000 decision rows.');
+  const rows = prepared.records.filter((row) => !missing(row[state]) && !missing(row[action]) && !missing(row[reward]));
+  if (rows.length < 30) throw new Error('At least 30 complete state, action, reward rows are required.');
+  const cutoff = Math.floor(rows.length * .8), train = rows.slice(0, cutoff), test = rows.slice(cutoff);
+  const actions = [...new Set(train.map((row) => String(row[action])))];
+  const q = new Map();
+  const key = (s, a) => `${s}\u0000${a}`;
+  const maxQ = (s) => Math.max(0, ...actions.map((a) => q.get(key(s, a)) || 0));
+  const alpha = .16, gamma = .84;
+  for (let epoch = 0; epoch < 30; epoch++) for (const row of train) {
+    const s = String(row[state]), a = String(row[action]), r = Number(row[reward]);
+    const follow = nextState && row[nextState] !== undefined && !missing(row[nextState]) ? String(row[nextState]) : s;
+    const prior = q.get(key(s, a)) || 0;
+    q.set(key(s, a), prior + alpha * (r + gamma * maxQ(follow) - prior));
+  }
+  const policy = (s) => actions.reduce((best, candidate) => (q.get(key(s, candidate)) || 0) > (q.get(key(s, best)) || 0) ? candidate : best, actions[0]);
+  const matched = test.filter((row) => policy(String(row[state])) === String(row[action]));
+  const policyReward = matched.length ? mean(matched.map((row) => Number(row[reward]))) : 0;
+  const baseline = mean(test.map((row) => Number(row[reward])));
+  return {
+    status: 'completed', mode: 'reinforcement_learning', task: 'offline tabular q-learning', task_type: 'reinforcement', rows: rows.length,
+    target: reward, profile: prepared.profile, split_method: 'chronological 80/20 decision-log split', split_sizes: { train: train.length, test: test.length }, metric: 'logged_policy_reward',
+    candidates: [{ kind: 'behavior_policy_baseline', feature: null, validation_score: baseline }, { kind: 'tabular_q_learning', feature: `${state} → ${action}`, validation_score: policyReward }],
+    selected: { kind: 'tabular_q_learning', feature: `${state} → ${action}` }, test_score: policyReward, baseline_test_score: baseline,
+    optimizer_budget: { strategy: 'tabular Q updates', epochs: 30, alpha, gamma, held_out_test_used_once: true },
+    quality_gates: { state_action_reward: 'passed', temporal_holdout: 'passed', offline_only: 'passed', policy_match_coverage: `${matched.length}/${test.length}` },
+    model_artifact: { kind: 'tabular_q_learning', state, action, reward, next_state: nextState || null },
+    limitations: 'This is offline reinforcement learning from logged decisions. It does not estimate counterfactual rewards for unobserved actions and must not control a live system until a simulator, safety constraints, and prospective evaluation demonstrate acceptable behavior.'
+  };
+}
