@@ -29,6 +29,7 @@ import { ImportWorkspace } from './ingestion/import-workspace';
 import { api } from './api';
 import { cloudEnabled } from './cloud/client';
 import { askCloud } from './cloud/chat';
+import { BetaRadar } from './beta-radar';
 type Brain = {
   id: string;
   name: string;
@@ -82,6 +83,7 @@ type View =
   | 'Discoveries'
   | 'Activity'
   | 'Laboratory'
+  | 'Beta Radar'
   | 'Import';
 export default function Home() {
   const [brains, setBrains] = useState<Brain[]>([]),
@@ -322,6 +324,7 @@ export default function Home() {
               ['Discoveries', Sparkles],
               ['Activity', Activity],
               ['Laboratory', FlaskConical],
+              ['Beta Radar', GitFork],
             ] as const
           ).map(([label, Icon]) => (
             <button
@@ -413,6 +416,8 @@ export default function Home() {
                       ? 'Preview, select, and preserve your sources.'
                       : view === 'Activity'
                         ? 'A durable record of work happening behind the conversation.'
+                      : view === 'Beta Radar'
+                        ? 'Separate research candidates from the stable brain, then promote only what proves useful.'
                         : 'Define what to learn, then measure whether it learned it.'}
             </p>
           </div>
@@ -454,6 +459,8 @@ export default function Home() {
           />
         ) : view === 'Import' ? (
           <ImportWorkspace brains={brains} activeId={id} onSaved={refresh} />
+        ) : view === 'Beta Radar' ? (
+          <BetaRadar />
         ) : !data ? (
           <div className="overview-grid offline-workspace">
             <KnowledgeGraph nodes={[]} links={[]} select={() => {}} />
