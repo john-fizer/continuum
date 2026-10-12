@@ -10,6 +10,8 @@ test('beta radar keeps proposed research separate from promoted system changes',
   assert.match(source, /'Ready for beta'/);
   assert.match(source, /Evidence-backed promotion gate/);
   assert.match(source, /localStorage/);
+  assert.match(source, /Ask JEV to review/);
+  assert.match(source, /cannot write to your memories, graph, or production release/);
 });
 
 test('the main navigation exposes the isolated beta radar workspace', async () => {
@@ -17,5 +19,5 @@ test('the main navigation exposes the isolated beta radar workspace', async () =
 
   assert.match(source, /\| 'Beta Radar'/);
   assert.match(source, /\['Beta Radar', GitFork\]/);
-  assert.match(source, /<BetaRadar \/>/);
+  assert.match(source, /<BetaRadar brainId=\{id\} \/>/);
 });

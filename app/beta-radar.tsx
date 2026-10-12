@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CheckCircle2, CircleDashed, FlaskConical, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, CircleDashed, FlaskConical, ShieldCheck, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { reviewBetaCandidate, type JevReview } from './cloud/jev';
 
 type CandidateStage = 'watch' | 'prototype' | 'ready';
 type Candidate = {
@@ -74,9 +75,11 @@ function nextStage(stage: CandidateStage): CandidateStage {
   return stage === 'watch' ? 'prototype' : 'ready';
 }
 
-export function BetaRadar() {
+export function BetaRadar({ brainId }: { brainId?: string | null }) {
   const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates);
   const [loaded, setLoaded] = useState(false);
+  const [review, setReview] = useState<{ candidate: string; result?: JevReview; error?: string } | null>(null);
+  const [reviewing, setReviewing] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -115,6 +118,23 @@ export function BetaRadar() {
           : candidate,
       ),
     );
+  }
+
+  async function requestReview(candidate: Candidate) {
+    if (!brainId) {
+      setReview({ candidate: candidate.title, error: 'Create or open a private brain before asking for an evidence review.' });
+      return;
+    }
+    setReviewing(candidate.id);
+    setReview(null);
+    try {
+      const result = await reviewBetaCandidate(brainId, candidate);
+      setReview({ candidate: candidate.title, result });
+    } catch (cause) {
+      setReview({ candidate: candidate.title, error: cause instanceof Error ? cause.message : 'JEV evidence review could not run.' });
+    } finally {
+      setReviewing(null);
+    }
   }
 
   return (
@@ -168,9 +188,26 @@ export function BetaRadar() {
                 {candidate.stage === 'watch' ? 'Start prototype' : 'Mark ready for beta'} <ArrowRight size={15} />
               </Button>
             )}
+            <Button variant="outline" className="jev-review-button" disabled={reviewing === candidate.id} onClick={() => requestReview(candidate)}>
+              <Sparkles size={15} /> {reviewing === candidate.id ? 'Reviewing evidence…' : 'Ask JEV to review'}
+            </Button>
           </article>
         ))}
       </div>
+
+      {review && (
+        <section className="jev-review" aria-live="polite">
+          <div className="row spread"><span className="tag amber">JEV EVIDENCE REVIEW</span><span className="fine">{review.candidate}</span></div>
+          {review.error ? <p>{review.error}</p> : (
+            <div className="jev-review-results">
+              <div><span>Recommended next step</span><strong>{review.result?.decision?.replace('_', ' ')}</strong></div>
+              <div><span>Evidence strength</span><strong>{review.result?.evidence_strength === null ? 'Unavailable' : `${Math.round(review.result.evidence_strength * 100)}%`}</strong></div>
+              <div><span>Human review</span><strong>{review.result?.human_review_probability === null ? 'Unavailable' : `${Math.round(review.result.human_review_probability * 100)}%`}</strong></div>
+            </div>
+          )}
+          <small>JEV advises on the candidate only. It cannot write to your memories, graph, or production release.</small>
+        </section>
+      )}
 
       <div className="beta-flow" aria-label="Beta promotion flow">
         <CircleDashed size={18} /><span>Research signal</span><ArrowRight size={16} /><span>Proposed capability</span><ArrowRight size={16} /><span>Measured prototype</span><ArrowRight size={16} /><span>Beta release</span>

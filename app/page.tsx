@@ -460,7 +460,7 @@ export default function Home() {
         ) : view === 'Import' ? (
           <ImportWorkspace brains={brains} activeId={id} onSaved={refresh} />
         ) : view === 'Beta Radar' ? (
-          <BetaRadar />
+          <BetaRadar brainId={id} />
         ) : !data ? (
           <div className="overview-grid offline-workspace">
             <KnowledgeGraph nodes={[]} links={[]} select={() => {}} />

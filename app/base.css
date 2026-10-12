@@ -738,6 +738,21 @@ header {
 .beta-stage.prototype { border-color: #d99646; color: #ffc675; background: #a85e111f; }
 .beta-stage.ready { border-color: #50bdb0; color: #93efe0; background: #1d928226; }
 .beta-ready { display: flex; align-items: center; gap: 8px; color: #91e8dc; font-size: 0.82rem; }
+.jev-review-button { margin-top: 1px; }
+.jev-review {
+  display: grid;
+  gap: 14px;
+  padding: 19px 21px;
+  border: 1px solid #386d82;
+  border-radius: 12px;
+  background: linear-gradient(125deg, #11293a, #0e1c2b);
+}
+.jev-review > p { color: #dfbd86; margin: 0; }
+.jev-review small { color: #8ca5b6; font-size: 0.75rem; }
+.jev-review-results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.jev-review-results > div { display: grid; gap: 5px; padding: 12px; border-radius: 8px; background: #0916238c; }
+.jev-review-results span { color: #8ca5b6; font-size: 0.72rem; text-transform: uppercase; letter-spacing: .07em; }
+.jev-review-results strong { color: #d5f1f4; text-transform: capitalize; }
 .beta-flow { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; padding: 17px; color: #8aaabd; border-top: 1px solid #294555; font-size: 0.78rem; letter-spacing: 0.03em; }
 .overlay {
   position: fixed;
@@ -914,6 +929,7 @@ footer {
   .beta-hero { padding: 21px; }
   .beta-metrics > div { padding: 14px 11px; }
   .beta-metrics strong { font-size: 1.25rem; }
+  .jev-review-results { grid-template-columns: 1fr; }
   .metrics > div {
     padding-left: 9px;
   }
