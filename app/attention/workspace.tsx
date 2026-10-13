@@ -544,8 +544,8 @@ export function AttentionWorkspace({
           signal={signal}
           voiceEnergy={voiceEnergy}
           voiceSpectrum={voiceSpectrum}
+          overlay={embodiment ? <EmbodiedPresence phase={presencePhase} energy={voiceEnergy} spectrum={voiceSpectrum} /> : null}
         />
-        {embodiment && <EmbodiedPresence phase={presencePhase} energy={voiceEnergy} spectrum={voiceSpectrum} />}
         <div className="attention-input">
           <form
             onSubmit={(e) => {

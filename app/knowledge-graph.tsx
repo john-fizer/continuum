@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Minus,
   Plus,
@@ -25,6 +25,7 @@ export function KnowledgeGraph({
   signal,
   voiceEnergy = 0,
   voiceSpectrum = [],
+  overlay,
 }: {
   nodes: Source[];
   links: Link[];
@@ -36,6 +37,8 @@ export function KnowledgeGraph({
   signal?: AttentionSignal;
   voiceEnergy?: number;
   voiceSpectrum?: number[];
+  /** A non-interactive visual layer that shares the graph canvas and its motion. */
+  overlay?: ReactNode;
 }) {
   const [zoom, setZoom] = useState(1),
     [paused, setPaused] = useState(false),
@@ -181,6 +184,7 @@ export function KnowledgeGraph({
         className={`graph-canvas living-canvas nova-canvas ${expanded ? 'nova-expanded' : ''} ${!available ? 'nova-fallback' : ''}`}
       >
         <canvas ref={canvas} aria-hidden="true" />
+        {overlay}
         <div className="graph-tools">
           <button
             aria-label="Zoom in"

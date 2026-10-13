@@ -78,16 +78,18 @@
 .attention-state button.active { color: #ffe1a4; text-shadow: 0 0 12px #efb36b99; }
 .embodied-presence {
   position: absolute;
-  z-index: 3;
-  top: 66px;
-  right: 24px;
-  width: 188px;
-  padding: 10px 12px 8px;
+  z-index: 2;
+  bottom: 116px;
+  right: clamp(16px, 3vw, 42px);
+  width: clamp(142px, 16vw, 196px);
+  padding: 6px 8px;
   pointer-events: none;
-  border: 1px solid #4a829333;
-  border-radius: 18px;
-  background: radial-gradient(ellipse at center, #16334220, transparent 70%);
-  opacity: .9;
+  border: 0;
+  background: radial-gradient(ellipse at 50% 43%, #2e79922b, transparent 67%);
+  opacity: .76;
+  mix-blend-mode: screen;
+  transform-origin: 50% 60%;
+  animation: presence-drift 16s ease-in-out infinite;
 }
 .presence-status { display: flex; align-items: center; gap: 7px; color: #8eb9c7; font-size: 9px; letter-spacing: .13em; text-transform: uppercase; }
 .presence-status span { width: 6px; height: 6px; border-radius: 50%; background: #6ce7ec; box-shadow: 0 0 12px #6ce7ec; }
@@ -99,7 +101,7 @@
 .presence-core { transform-origin: 150px 144px; animation: presence-breathe 4.4s ease-in-out infinite; }
 .presence-spark { fill: #fff9d6; animation: presence-spark 1.5s ease-in-out infinite; }
 .presence-spectrum rect { fill: url(#presence-flow); filter: drop-shadow(0 0 3px #91ecf8); }
-.embodied-presence p { margin: -4px 2px 0; color: #779aaa; font-size: 9px; line-height: 1.45; }
+.embodied-presence p { margin: -4px 2px 0; color: #779aaa; font-size: 9px; line-height: 1.45; opacity: .7; }
 .embodied-presence.phase-listening .presence-silhouette { stroke: #8ef3f5; }
 .embodied-presence.phase-thinking .presence-rings { animation-duration: 3.5s; }
 .embodied-presence.phase-speaking .presence-core { animation-duration: .72s; }
@@ -109,6 +111,7 @@
 @keyframes presence-filament { to { stroke-dashoffset: -90; } }
 @keyframes presence-breathe { 50% { transform: scale(calc(1 + var(--presence-energy, .1) * .16)); opacity: .98; } }
 @keyframes presence-spark { 50% { r: 11; opacity: .45; } }
+@keyframes presence-drift { 50% { transform: translate3d(-9px, -13px, 0) scale(1.025); } }
 .attention-input {
   position: absolute;
   bottom: 26px;

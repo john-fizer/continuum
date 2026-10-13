@@ -11,5 +11,6 @@ test('embodied presence is a visual mirror of Continuum conversation state', asy
   assert.match(presence, /voice|spectrum/i);
   assert.match(presence, /memory and evidence remain in Continuum/i);
   assert.match(workspace, /Try embodied presence/);
-  assert.match(workspace, /<EmbodiedPresence/);
+  assert.match(workspace, /overlay=\{embodiment \? <EmbodiedPresence/);
+  assert.match(workspace, /voiceEnergy=\{voiceEnergy\}/);
 });
