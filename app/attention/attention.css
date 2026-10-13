@@ -75,6 +75,40 @@
   padding: 4px;
   cursor: pointer;
 }
+.attention-state button.active { color: #ffe1a4; text-shadow: 0 0 12px #efb36b99; }
+.embodied-presence {
+  position: absolute;
+  z-index: 3;
+  top: 66px;
+  right: 24px;
+  width: 188px;
+  padding: 10px 12px 8px;
+  pointer-events: none;
+  border: 1px solid #4a829333;
+  border-radius: 18px;
+  background: radial-gradient(ellipse at center, #16334220, transparent 70%);
+  opacity: .9;
+}
+.presence-status { display: flex; align-items: center; gap: 7px; color: #8eb9c7; font-size: 9px; letter-spacing: .13em; text-transform: uppercase; }
+.presence-status span { width: 6px; height: 6px; border-radius: 50%; background: #6ce7ec; box-shadow: 0 0 12px #6ce7ec; }
+.embodied-presence svg { display: block; width: 100%; height: auto; overflow: visible; }
+.presence-silhouette { fill: #071b2a44; stroke: url(#presence-flow); stroke-width: 1.3; filter: drop-shadow(0 0 6px #65ddec66); }
+.presence-filament { fill: none; stroke: url(#presence-flow); stroke-width: 1.1; stroke-dasharray: 2 4; opacity: .85; animation: presence-filament 7s linear infinite; }
+.presence-rings { stroke-width: 1.2; opacity: .8; transform-origin: 150px 144px; animation: presence-rings 12s linear infinite; }
+.presence-rings ellipse:nth-child(2) { animation: presence-counter 7s linear infinite; transform-origin: 150px 144px; }
+.presence-core { transform-origin: 150px 144px; animation: presence-breathe 4.4s ease-in-out infinite; }
+.presence-spark { fill: #fff9d6; animation: presence-spark 1.5s ease-in-out infinite; }
+.presence-spectrum rect { fill: url(#presence-flow); filter: drop-shadow(0 0 3px #91ecf8); }
+.embodied-presence p { margin: -4px 2px 0; color: #779aaa; font-size: 9px; line-height: 1.45; }
+.embodied-presence.phase-listening .presence-silhouette { stroke: #8ef3f5; }
+.embodied-presence.phase-thinking .presence-rings { animation-duration: 3.5s; }
+.embodied-presence.phase-speaking .presence-core { animation-duration: .72s; }
+.embodied-presence.phase-speaking .presence-filament { animation-duration: 1.4s; stroke-width: 1.8; }
+@keyframes presence-rings { to { transform: rotate(360deg); } }
+@keyframes presence-counter { to { transform: rotate(-360deg); } }
+@keyframes presence-filament { to { stroke-dashoffset: -90; } }
+@keyframes presence-breathe { 50% { transform: scale(calc(1 + var(--presence-energy, .1) * .16)); opacity: .98; } }
+@keyframes presence-spark { 50% { r: 11; opacity: .45; } }
 .attention-input {
   position: absolute;
   bottom: 26px;

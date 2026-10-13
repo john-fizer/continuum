@@ -12,10 +12,12 @@ import {
   Waves,
   Upload,
   X,
+  ScanFace,
 } from 'lucide-react';
 import { KnowledgeGraph } from '../knowledge-graph';
 import { workingAttention } from './model.mjs';
 import type { AttentionSignal } from './events';
+import { EmbodiedPresence, type PresencePhase } from './presence';
 import './attention.css';
 
 type BrowserSpeechRecognition = EventTarget & {
@@ -91,6 +93,8 @@ export function AttentionWorkspace({
   const [speaking, setSpeaking] = useState(false);
   const [voiceEnergy, setVoiceEnergy] = useState(0);
   const [voiceSpectrum, setVoiceSpectrum] = useState<number[]>([]);
+  const [embodiment, setEmbodiment] = useState(false);
+  const [presencePhase, setPresencePhase] = useState<PresencePhase>('idle');
   const [capturing, setCapturing] = useState(false),
     [draft, setDraft] = useState('');
   const requestId = useRef(0);
@@ -108,6 +112,7 @@ export function AttentionWorkspace({
   const playbackUrl = useRef<string | null>(null);
   function setConversationPhase(next: ConversationPhase) {
     phase.current = next;
+    setPresencePhase(next);
   }
   function clearConversationRearm() {
     if (rearmTimer.current !== null) window.clearTimeout(rearmTimer.current);
@@ -506,6 +511,10 @@ export function AttentionWorkspace({
               Collapse
             </button>
           )}
+          <button className={embodiment ? 'active' : ''} onClick={() => setEmbodiment((current) => !current)} aria-pressed={embodiment} aria-label={embodiment ? 'Hide Continuum presence' : 'Show Continuum presence'} title={embodiment ? 'Hide presence' : 'Try embodied presence'}>
+            <ScanFace size={15} />
+            Presence
+          </button>
         </div>
         <div className="attention-mobile-actions" aria-label="Quick actions">
           <p>What would you like to do?</p>
@@ -536,6 +545,7 @@ export function AttentionWorkspace({
           voiceEnergy={voiceEnergy}
           voiceSpectrum={voiceSpectrum}
         />
+        {embodiment && <EmbodiedPresence phase={presencePhase} energy={voiceEnergy} spectrum={voiceSpectrum} />}
         <div className="attention-input">
           <form
             onSubmit={(e) => {
