@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { buildJevEvidenceReview, parseJevEvidenceReview } from '../app/research/jev.mjs';
 
-const endpoint = 'https://jevmodel.net/v1/systemone';
+const endpoint = 'https://api.typesafe.ai/v1/systemone';
 
 export default async function handler(request, response) {
   response.setHeader('Cache-Control', 'no-store');
@@ -9,7 +9,7 @@ export default async function handler(request, response) {
   const token = request.headers.authorization?.replace(/^Bearer\s+/i, '');
   const url = process.env.VITE_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const jevKey = process.env.JEV_API_KEY;
+  const jevKey = process.env.TYPESAFE_API_KEY || process.env.JEV_API_KEY;
   if (!token) return response.status(401).json({ error: 'Sign in to review a private beta candidate.' });
   if (!url || !serviceKey) return response.status(503).json({ error: 'Private cloud memory is not configured.' });
   if (!jevKey) return response.status(503).json({ error: 'JEV evidence review is not configured for this beta deployment.' });

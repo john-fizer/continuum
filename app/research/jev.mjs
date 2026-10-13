@@ -23,46 +23,47 @@ export function buildJevEvidenceReview(candidate) {
   return {
     state,
     model: 'jev-latest',
-    questions: [
-      {
-        id: 'promotion_readiness',
+    questions: {
+      promotion_readiness: {
         type: 'choice',
-        prompt: 'Based only on this proposed capability and its stated test, what is the appropriate next decision?',
-        choices: ['prototype', 'needs_evidence', 'reject'],
+        instructions: 'Based only on `proposed_capability`, `evidence_signal`, `smallest_test`, and `promotion_guardrail`, choose the next beta decision. Do not infer evidence that is not present.',
+        criteria: {
+          prototype: 'The capability has a bounded, reversible smallest test and a stated guardrail; it may enter a limited beta experiment.',
+          needs_evidence: 'The idea is plausible but the stated signal or test is too weak, vague, or incomplete to begin a limited beta experiment.',
+          reject: 'The proposed experiment is unsafe, unbounded, or conflicts with its stated guardrail.',
+        },
       },
-      {
-        id: 'evidence_strength',
+      evidence_strength: {
         type: 'score',
-        prompt: 'How strong is the stated evidence and test plan for a limited beta experiment?',
-        min: 0,
-        max: 1,
+        instructions: 'Rate the strength of the stated evidence and smallest test for a limited beta experiment. Judge only the supplied state.',
+        criteria: [
+          'No usable evidence signal or no testable plan.',
+          'A weak or vague signal with a partially specified test.',
+          'A concrete signal and bounded test, but incomplete success criteria or guardrails.',
+          'A strong, directly relevant signal with a bounded test and explicit guardrail.',
+        ],
       },
-      {
-        id: 'human_review',
+      human_review: {
         type: 'noul',
-        prompt: 'Would promoting this proposed capability require human review before any production release?',
+        instructions: 'Would any promotion from this beta experiment to production require a human review?',
+        criteria: {
+          true: 'A human must review outcomes and explicitly approve any production promotion.',
+          false: 'The supplied state explicitly establishes a safe, automatic production promotion policy.',
+        },
       },
-    ],
+    },
   };
 }
 
-function responseItems(payload) {
-  if (Array.isArray(payload?.answers)) return payload.answers;
-  if (Array.isArray(payload?.results)) return payload.results;
-  if (Array.isArray(payload?.data?.answers)) return payload.data.answers;
-  if (Array.isArray(payload?.data?.results)) return payload.data.results;
-  return [];
-}
-
-function itemValue(item) {
-  return item?.value ?? item?.answer ?? item?.result ?? item?.response ?? null;
-}
-
 export function parseJevEvidenceReview(payload) {
-  const values = new Map(responseItems(payload).map((item) => [item?.id || item?.question_id, itemValue(item)]));
-  const readiness = values.get('promotion_readiness');
-  const strength = Number(values.get('evidence_strength'));
-  const humanReview = Number(values.get('human_review'));
+  const answers = payload?.answers && typeof payload.answers === 'object' && !Array.isArray(payload.answers)
+    ? payload.answers
+    : {};
+  const readiness = answers.promotion_readiness?.choice;
+  // A Score is an ordered probability-weighted value. Normalize the four levels to 0–1 for the UI.
+  const rawStrength = Number(answers.evidence_strength?.score);
+  const strength = Number.isFinite(rawStrength) ? rawStrength / 3 : null;
+  const humanReview = Number(answers.human_review?.noul);
   return {
     decision: ['prototype', 'needs_evidence', 'reject'].includes(readiness) ? readiness : 'needs_evidence',
     evidence_strength: Number.isFinite(strength) ? Math.min(1, Math.max(0, strength)) : null,
