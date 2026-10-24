@@ -63,6 +63,15 @@ const initialCandidates: Candidate[] = [
     smallestTest: 'Record avoided errors, latency, and whether a requested source changed the decision.',
     guardrail: 'Escalation stays deterministic and budget-limited while evidence is incomplete.',
   },
+  {
+    id: 'ncm-coarse-to-fine-synthesis',
+    title: 'NCM coarse-to-fine synthesis',
+    category: 'Generation research',
+    stage: 'watch',
+    signal: 'Evaluate Next-Concept Modeling only as a GPU-backed draft-synthesis experiment; it is not a replacement for retrieval, citations, or conversational reasoning.',
+    smallestTest: 'Run 50 source-grounded synthesis prompts through an isolated Python/CUDA service and compare latency, factual support, and revision quality against the current model.',
+    guardrail: 'NCM receives retrieved, redacted context only; responses remain draft-only, retain source citations, and cannot write to memory, graph, or production.',
+  },
 ];
 
 const stageCopy: Record<CandidateStage, string> = {
@@ -84,7 +93,11 @@ export function BetaRadar({ brainId }: { brainId?: string | null }) {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(storageKey);
-      if (saved) setCandidates(JSON.parse(saved) as Candidate[]);
+      if (saved) {
+        const savedCandidates = JSON.parse(saved) as Candidate[];
+        const savedById = new Map(savedCandidates.map((candidate) => [candidate.id, candidate]));
+        setCandidates(initialCandidates.map((candidate) => savedById.get(candidate.id) ?? candidate));
+      }
     } catch {
       // Beta state is intentionally disposable; the default candidate ledger remains usable.
     } finally {

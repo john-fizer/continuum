@@ -12,6 +12,9 @@ test('beta radar keeps proposed research separate from promoted system changes',
   assert.match(source, /localStorage/);
   assert.match(source, /Ask JEV to review/);
   assert.match(source, /cannot write to your memories, graph, or production release/);
+  assert.match(source, /NCM coarse-to-fine synthesis/);
+  assert.match(source, /GPU-backed draft-synthesis experiment/);
+  assert.match(source, /savedById/);
 });
 
 test('the main navigation exposes the isolated beta radar workspace', async () => {
